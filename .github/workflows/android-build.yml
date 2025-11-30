@@ -26,7 +26,7 @@ jobs:
       
     - name: Create .env.local with API key
       run: |
-        echo "VITE_GEMINI_API_KEY=AIzaSyDXMe8bsSHJcmjKWpfR6svKih7nC-PSIGw" > .env.local
+        echo "VITE_GEMINI_API_KEY=AIzaSyBBMlUDXvFPo9eCwrV4o1RMgmZ7HOFQ_kk" > .env.local
         echo "VITE_N8N_WEBHOOK_URL=https://norn.app.n8n.cloud/webhook/santa-leads" >> .env.local
       
     - name: Build web assets
