@@ -50,32 +50,6 @@ export const submitLead = async (data: LeadData): Promise<void> => {
         } catch (e) {
             console.error("Failed to send lead to n8n:", e);
         }
-    } else {
-        console.warn("⚠️ n8n Webhook not configured. Add VITE_N8N_WEBHOOK_URL to .env");
-    }
-};
-
-const sendToWebhook = async (data: LeadData): Promise<void> => {
-    const response = await fetch(WEBHOOK_URL, {
-        method: 'POST',
-        headers: {
-            'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(data)
-    });
-
-    if (!response.ok) {
-        const errorText = await response.text();
-        throw new Error(`Webhook Error: ${response.status} - ${errorText}`);
-    }
-
-    console.log("✅ Lead sent to Google Sheets via n8n");
-};
-
-export const getStoredLeads = (): LeadData[] => {
-    try {
-        const str = localStorage.getItem(LEADS_STORAGE_KEY);
-        return str ? JSON.parse(str) : [];
     } catch {
         return [];
     }

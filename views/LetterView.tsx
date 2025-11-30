@@ -158,7 +158,11 @@ const LetterView: React.FC<Props> = ({ setViewState, language }) => {
 
             // For now, just show the text and let user read it
             // TODO: Implement proper TTS when ElevenLabs is configured
-            alert(`Carta:\n\n${textToRead}\n\n(Función de lectura en voz alta próximamente)`);
+            const displayMessage = language === 'Spanish'
+                ? `Carta:\n\n${textToRead}\n\n(Función de lectura en voz alta próximamente)`
+                : `Letter:\n\n${textToRead}\n\n(Read aloud feature coming soon)`;
+
+            alert(displayMessage);
             setIsReading(false);
         } catch (e) {
             console.error('Error:', e);
@@ -170,21 +174,40 @@ const LetterView: React.FC<Props> = ({ setViewState, language }) => {
         if (!image) return;
 
         try {
-            // Create a link element
-            const link = document.createElement('a');
+            // Gemini returns base64 without data URL prefix
+            // Determine format (Gemini typically returns PNG for image generation)
+            const imageFormat = 'png'; // Gemini 2.5 Flash Image returns PNG
 
-            // Gemini returns PNG images, so use PNG format
-            link.href = `data:image/png;base64,${image}`;
-            link.download = `santa_letter_${Date.now()}.png`;
+            // Create data URL
+            const dataUrl = `data:image/${imageFormat};base64,${image}`;
 
-            // Trigger download
-            document.body.appendChild(link);
-            link.click();
+            // Convert to blob for better compatibility
+            fetch(dataUrl)
+                .then(res => res.blob())
+                .then(blob => {
+                    const url = URL.createObjectURL(blob);
+                    const link = document.createElement('a');
+                    link.href = url;
+                    link.download = `santa_letter_${Date.now()}.${imageFormat}`;
+                    document.body.appendChild(link);
+                    link.click();
 
-            // Clean up
-            setTimeout(() => {
-                document.body.removeChild(link);
-            }, 100);
+                    // Cleanup
+                    setTimeout(() => {
+                        document.body.removeChild(link);
+                        URL.revokeObjectURL(url);
+                    }, 100);
+                })
+                .catch(err => {
+                    console.error('Blob conversion failed:', err);
+                    // Fallback to direct download
+                    const link = document.createElement('a');
+                    link.href = dataUrl;
+                    link.download = `santa_letter_${Date.now()}.${imageFormat}`;
+                    document.body.appendChild(link);
+                    link.click();
+                    setTimeout(() => document.body.removeChild(link), 100);
+                });
         } catch (error) {
             console.error('Error downloading image:', error);
             alert('Error al descargar la imagen. Por favor, intenta de nuevo.');

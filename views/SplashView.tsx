@@ -161,7 +161,7 @@ const SplashView: React.FC<Props> = ({ setViewState, language, setLanguage }) =>
                         className="absolute"
                         style={{
                             left: '42.4%',
-                            top: '60.5%',
+                            top: '60%',
                             width: '18.67%',
                             zIndex: 4
                         }}
