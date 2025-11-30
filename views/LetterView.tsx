@@ -240,43 +240,40 @@ Por favor envía este error completo al desarrollador.
         if (!image) return;
 
         try {
-            // Gemini returns base64 without data URL prefix
-            // Determine format (Gemini typically returns PNG for image generation)
-            const imageFormat = 'png'; // Gemini 2.5 Flash Image returns PNG
-
-            // Create data URL
+            // On Android, we need to open the image in a new tab for user to long-press and save
+            const imageFormat = 'png';
             const dataUrl = `data:image/${imageFormat};base64,${image}`;
 
-            // Convert to blob for better compatibility
-            fetch(dataUrl)
-                .then(res => res.blob())
-                .then(blob => {
-                    const url = URL.createObjectURL(blob);
-                    const link = document.createElement('a');
-                    link.href = url;
-                    link.download = `santa_letter_${Date.now()}.${imageFormat}`;
-                    document.body.appendChild(link);
-                    link.click();
-
-                    // Cleanup
-                    setTimeout(() => {
-                        document.body.removeChild(link);
-                        URL.revokeObjectURL(url);
-                    }, 100);
-                })
-                .catch(err => {
-                    console.error('Blob conversion failed:', err);
-                    // Fallback to direct download
+            // Try different approaches for Android compatibility
+            if (navigator.userAgent.includes('Android')) {
+                // Android: Open in new window so user can save
+                const win = window.open();
+                if (win) {
+                    win.document.write(`<img src="${dataUrl}" style="width:100%;height:auto;" />`);
+                    win.document.title = `Santa Letter ${Date.now()}`;
+                } else {
+                    // Fallback: try direct download
                     const link = document.createElement('a');
                     link.href = dataUrl;
                     link.download = `santa_letter_${Date.now()}.${imageFormat}`;
                     document.body.appendChild(link);
                     link.click();
-                    setTimeout(() => document.body.removeChild(link), 100);
-                });
+                    document.body.removeChild(link);
+                }
+            } else {
+                // Desktop/iOS: Direct download
+                const link = document.createElement('a');
+                link.href = dataUrl;
+                link.download = `santa_letter_${Date.now()}.${imageFormat}`;
+                document.body.appendChild(link);
+                link.click();
+                setTimeout(() => document.body.removeChild(link), 100);
+            }
         } catch (error) {
             console.error('Error downloading image:', error);
-            alert('Error al descargar la imagen. Por favor, intenta de nuevo.');
+            alert(language === 'Spanish'
+                ? 'Error al descargar. Intenta hacer captura de pantalla de la imagen.'
+                : 'Download error. Try taking a screenshot instead.');
         }
     };
 
@@ -448,24 +445,11 @@ Por favor envía este error completo al desarrollador.
                     />
                 </div>
 
-                {/* Read Button */}
-                <div
-                    onClick={handleReadAloud}
-                    className={`absolute z-20 cursor-pointer flex items-center justify-center bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl shadow-lg transition active:scale-95 ${(!message && !analysis) || isReading ? 'opacity-50 cursor-not-allowed' : ''}`}
-                    style={{ left: '10.6%', top: '70.5%', width: '26.7%', height: '50px' }}
-                >
-                    {isReading ? (
-                        <div className="animate-pulse">🔊</div>
-                    ) : (
-                        <Play size={20} fill="currentColor" />
-                    )}
-                </div>
-
-                {/* Send Button */}
+                {/* Send Button - Full Width */}
                 <div
                     onClick={handleSendLetter}
                     className="absolute z-20 cursor-pointer flex items-center justify-center gap-2 bg-red-600 hover:bg-red-500 text-white font-bold rounded-xl shadow-lg transition active:scale-95 border-2 border-red-400"
-                    style={{ left: '40%', top: '70.5%', width: '49.3%', height: '50px' }}
+                    style={{ left: '10.6%', top: '70.5%', width: '78.7%', height: '50px' }}
                 >
                     <Send size={20} /> {t.sendToSanta}
                 </div>
