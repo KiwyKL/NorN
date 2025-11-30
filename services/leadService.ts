@@ -50,9 +50,33 @@ export const submitLead = async (data: LeadData): Promise<void> => {
         } catch (e) {
             console.error("Failed to send lead to n8n:", e);
         }
-    } catch {
-        return [];
+    } else {
+        console.warn("⚠️ n8n Webhook not configured. Add VITE_N8N_WEBHOOK_URL to .env");
     }
+};
+
+const sendToWebhook = async (data: LeadData): Promise<void> => {
+    console.log('🌐 Sending to webhook:', WEBHOOK_URL);
+    console.log('📤 Data:', JSON.stringify(data, null, 2));
+
+    const response = await fetch(WEBHOOK_URL, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(data)
+    });
+
+    console.log('📥 Response status:', response.status, response.statusText);
+
+    if (!response.ok) {
+        const errorText = await response.text();
+        console.error('❌ Webhook error:', errorText);
+        throw new Error(`Webhook Error: ${response.status} - ${errorText}`);
+    }
+
+    const responseText = await response.text();
+    console.log("✅ Lead sent successfully! Response:", responseText);
 };
 
 export const downloadLeadsCSV = (): void => {
