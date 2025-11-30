@@ -145,61 +145,43 @@ const LetterView: React.FC<Props> = ({ setViewState, language }) => {
         }
     };
 
+    const [isReading, setIsReading] = useState(false);
+
     const handleReadAloud = async () => {
         if (!message && !analysis) return;
+        if (isReading) return; // Prevent multiple simultaneous readings
+
+        setIsReading(true);
 
         try {
-            // Use browser's native Text-to-Speech (Web Speech API)
             const textToRead = message || analysis || '';
 
-            // Check if browser supports speech synthesis
-            if ('speechSynthesis' in window) {
-                // Cancel any ongoing speech
-                window.speechSynthesis.cancel();
+            // Use Gemini TTS (works in Android WebView)
+            const audioBuffer = await generateSpeech(textToRead, '', language === 'Spanish' ? 'es' : 'en');
 
-                // Get available voices
-                const voices = window.speechSynthesis.getVoices();
+            // Convert ArrayBuffer to Blob
+            const audioBlob = new Blob([audioBuffer], { type: 'audio/mpeg' });
+            const audioUrl = URL.createObjectURL(audioBlob);
 
-                // Log available voices (for debugging)
-                console.log('Available voices:', voices.map(v => ({ name: v.name, lang: v.lang })));
+            // Create and play audio element
+            const audio = new Audio(audioUrl);
 
-                // Try to find male Spanish voice
-                let selectedVoice = voices.find(voice =>
-                    voice.lang.startsWith('es') &&
-                    (voice.name.toLowerCase().includes('male') ||
-                        voice.name.toLowerCase().includes('masculino') ||
-                        voice.name.toLowerCase().includes('jorge') ||
-                        voice.name.toLowerCase().includes('diego') ||
-                        voice.name.toLowerCase().includes('juan'))
-                );
+            audio.onended = () => {
+                setIsReading(false);
+                URL.revokeObjectURL(audioUrl);
+            };
 
-                // Fallback to any Spanish voice
-                if (!selectedVoice) {
-                    selectedVoice = voices.find(voice => voice.lang.startsWith('es'));
-                }
+            audio.onerror = () => {
+                setIsReading(false);
+                URL.revokeObjectURL(audioUrl);
+                alert('Error al reproducir el audio / Error playing audio');
+            };
 
-                // Create utterance
-                const utterance = new SpeechSynthesisUtterance(textToRead);
-
-                if (selectedVoice) {
-                    utterance.voice = selectedVoice;
-                    console.log('Using voice:', selectedVoice.name);
-                }
-
-                // Configure speech parameters for deeper male voice
-                utterance.lang = 'es-ES';
-                utterance.rate = 0.85; // Slightly slower for better clarity
-                utterance.pitch = 0.5; // Much lower pitch for masculine sound
-                utterance.volume = 1.0; // Full volume
-
-                // Speak
-                window.speechSynthesis.speak(utterance);
-            } else {
-                alert('Tu navegador no soporta lectura de voz / Your browser does not support text-to-speech');
-            }
+            await audio.play();
         } catch (e) {
             console.error('Error reading aloud:', e);
-            alert('Error al leer la carta / Error reading letter');
+            setIsReading(false);
+            alert('Error al leer la carta. Verifica tu conexión / Error reading letter');
         }
     };
 
@@ -399,10 +381,14 @@ const LetterView: React.FC<Props> = ({ setViewState, language }) => {
                 {/* Read Button */}
                 <div
                     onClick={handleReadAloud}
-                    className={`absolute z-20 cursor-pointer flex items-center justify-center bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl shadow-lg transition active:scale-95 ${(!message && !analysis) ? 'opacity-50 cursor-not-allowed' : ''}`}
+                    className={`absolute z-20 cursor-pointer flex items-center justify-center bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl shadow-lg transition active:scale-95 ${(!message && !analysis) || isReading ? 'opacity-50 cursor-not-allowed' : ''}`}
                     style={{ left: '10.6%', top: '70.5%', width: '26.7%', height: '50px' }}
                 >
-                    <Play size={20} fill="currentColor" />
+                    {isReading ? (
+                        <div className="animate-pulse">🔊</div>
+                    ) : (
+                        <Play size={20} fill="currentColor" />
+                    )}
                 </div>
 
                 {/* Send Button */}
