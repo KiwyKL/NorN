@@ -174,17 +174,65 @@ Por favor envía este error completo al desarrollador.
         try {
             const textToRead = message || analysis || '';
 
-            // For now, just show the text and let user read it
-            // TODO: Implement proper TTS when ElevenLabs is configured
-            const displayMessage = language === 'Spanish'
-                ? `Carta:\n\n${textToRead}\n\n(Función de lectura en voz alta próximamente)`
-                : `Letter:\n\n${textToRead}\n\n(Read aloud feature coming soon)`;
+            // Try to use Web Speech API (works on some Android devices)
+            if ('speechSynthesis' in window) {
+                // Cancel any ongoing speech
+                window.speechSynthesis.cancel();
 
-            alert(displayMessage);
-            setIsReading(false);
+                // Wait for voices to load
+                const loadVoices = () => {
+                    return new Promise<SpeechSynthesisVoice[]>((resolve) => {
+                        let voices = window.speechSynthesis.getVoices();
+                        if (voices.length > 0) {
+                            resolve(voices);
+                        } else {
+                            window.speechSynthesis.addEventListener('voiceschanged', () => {
+                                voices = window.speechSynthesis.getVoices();
+                                resolve(voices);
+                            }, { once: true });
+                            // Fallback after 1 second
+                            setTimeout(() => resolve(window.speechSynthesis.getVoices()), 1000);
+                        }
+                    });
+                };
+
+                const voices = await loadVoices();
+                console.log('Available voices:', voices.length);
+
+                const utterance = new SpeechSynthesisUtterance(textToRead);
+
+                // Try to find Spanish voice
+                const spanishVoice = voices.find(v => v.lang.startsWith('es'));
+                if (spanishVoice) {
+                    utterance.voice = spanishVoice;
+                }
+
+                utterance.lang = language === 'Spanish' ? 'es-ES' : 'en-US';
+                utterance.rate = 0.9;
+                utterance.pitch = 0.8;
+                utterance.volume = 1.0;
+
+                utterance.onend = () => {
+                    setIsReading(false);
+                };
+
+                utterance.onerror = (e) => {
+                    console.error('Speech error:', e);
+                    setIsReading(false);
+                    // Fallback: show text
+                    alert(`${language === 'Spanish' ? 'Carta' : 'Letter'}:\n\n${textToRead}`);
+                };
+
+                window.speechSynthesis.speak(utterance);
+            } else {
+                // No speech synthesis support - show text
+                setIsReading(false);
+                alert(`${language === 'Spanish' ? 'Carta' : 'Letter'}:\n\n${textToRead}`);
+            }
         } catch (e) {
-            console.error('Error:', e);
+            console.error('TTS Error:', e);
             setIsReading(false);
+            alert(`${language === 'Spanish' ? 'Carta' : 'Letter'}:\n\n${textToRead || ''}`);
         }
     };
 
