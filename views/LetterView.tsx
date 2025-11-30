@@ -90,11 +90,19 @@ const LetterView: React.FC<Props> = ({ setViewState, language }) => {
             console.error('Error message:', e.message);
             console.error('Error stack:', e.stack);
 
-            const errorMsg = language === 'Spanish'
-                ? `Error al enviar la carta: ${e.message || 'Error desconocido'}\n\nPor favor verifica tu conexión e intenta nuevamente.`
-                : `Failed to send letter: ${e.message || 'Unknown error'}\n\nPlease check your connection and try again.`;
+            // Show detailed error to user for debugging
+            const errorDetails = `
+ERROR COMPLETO (copia esto):
+━━━━━━━━━━━━━━━━━━━━━━━━
+Tipo: ${e.name || 'Error'}
+Mensaje: ${e.message || 'Sin mensaje'}
+Detalles: ${JSON.stringify(e, null, 2)}
+━━━━━━━━━━━━━━━━━━━━━━━━
 
-            alert(errorMsg);
+Por favor envía este error completo al desarrollador.
+            `.trim();
+
+            alert(errorDetails);
         } finally {
             if (mountedRef.current) setLoading(false);
         }
