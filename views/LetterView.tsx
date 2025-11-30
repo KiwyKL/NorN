@@ -149,39 +149,20 @@ const LetterView: React.FC<Props> = ({ setViewState, language }) => {
 
     const handleReadAloud = async () => {
         if (!message && !analysis) return;
-        if (isReading) return; // Prevent multiple simultaneous readings
+        if (isReading) return;
 
         setIsReading(true);
 
         try {
             const textToRead = message || analysis || '';
 
-            // Use Gemini TTS (works in Android WebView)
-            const audioBuffer = await generateSpeech(textToRead, '', language === 'Spanish' ? 'es' : 'en');
-
-            // Convert ArrayBuffer to Blob
-            const audioBlob = new Blob([audioBuffer], { type: 'audio/mpeg' });
-            const audioUrl = URL.createObjectURL(audioBlob);
-
-            // Create and play audio element
-            const audio = new Audio(audioUrl);
-
-            audio.onended = () => {
-                setIsReading(false);
-                URL.revokeObjectURL(audioUrl);
-            };
-
-            audio.onerror = () => {
-                setIsReading(false);
-                URL.revokeObjectURL(audioUrl);
-                alert('Error al reproducir el audio / Error playing audio');
-            };
-
-            await audio.play();
-        } catch (e) {
-            console.error('Error reading aloud:', e);
+            // For now, just show the text and let user read it
+            // TODO: Implement proper TTS when ElevenLabs is configured
+            alert(`Carta:\n\n${textToRead}\n\n(Función de lectura en voz alta próximamente)`);
             setIsReading(false);
-            alert('Error al leer la carta. Verifica tu conexión / Error reading letter');
+        } catch (e) {
+            console.error('Error:', e);
+            setIsReading(false);
         }
     };
 
