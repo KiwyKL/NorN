@@ -68,7 +68,10 @@ const LetterView: React.FC<Props> = ({ setViewState, language }) => {
             // Combine fields into a text that should appear on the letter
             const letterContent = `Name: ${name}\nFrom: ${country}, Age: ${age}\nWishes: ${message}`;
 
+            console.log('📧 Generating letter image...');
             const base64 = await generateChristmasImage(letterContent);
+            console.log('✅ Image generated successfully');
+
             if (mountedRef.current) {
                 setImage(base64);
                 setIsSent(true);
@@ -82,9 +85,16 @@ const LetterView: React.FC<Props> = ({ setViewState, language }) => {
                     metadata: { age, message }
                 });
             }
-        } catch (e) {
-            console.error(e);
-            alert('Failed to send letter');
+        } catch (e: any) {
+            console.error('❌ Letter sending error:', e);
+            console.error('Error message:', e.message);
+            console.error('Error stack:', e.stack);
+
+            const errorMsg = language === 'Spanish'
+                ? `Error al enviar la carta: ${e.message || 'Error desconocido'}\n\nPor favor verifica tu conexión e intenta nuevamente.`
+                : `Failed to send letter: ${e.message || 'Unknown error'}\n\nPlease check your connection and try again.`;
+
+            alert(errorMsg);
         } finally {
             if (mountedRef.current) setLoading(false);
         }
