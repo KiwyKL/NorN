@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">Santa Mail &amp; Calls</string>
+    <string name="title_activity_main">Santa Mail &amp; Calls</string>
+    <string name="package_name">com.santa.mailcalls</string>
+    <string name="custom_url_scheme">com.santa.mailcalls</string>
+</resources>

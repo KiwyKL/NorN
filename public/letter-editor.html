@@ -1,0 +1,341 @@
+<!DOCTYPE html>
+<html lang="es">
+
+<head>
+    <meta charset="UTF-8">
+    <title>Editor Carta a Santa</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: Arial;
+            background: #1a1a1a;
+            color: white;
+            display: flex;
+            justify-content: center;
+            padding: 20px;
+        }
+
+        #container {
+            display: flex;
+            gap: 20px;
+        }
+
+        #phone {
+            background: #222;
+            border-radius: 30px;
+            padding: 15px;
+            box-shadow: 0 10px 50px rgba(0, 0, 0, 0.5);
+            border: 8px solid #333;
+        }
+
+        #canvas {
+            position: relative;
+            width: 375px;
+            height: 667px;
+            background: url('/images/dashboard-bg.jpg') center/cover;
+            border-radius: 15px;
+            overflow: hidden;
+        }
+
+        .draggable {
+            position: absolute;
+            cursor: grab;
+            border: 2px solid transparent;
+        }
+
+        .draggable:hover {
+            border-color: #0f0;
+            box-shadow: 0 0 10px rgba(0, 255, 0, 0.5);
+        }
+
+        .draggable img {
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+            display: block;
+        }
+
+        .resize-handle {
+            position: absolute;
+            bottom: -5px;
+            right: -5px;
+            width: 25px;
+            height: 25px;
+            background: #0f0;
+            cursor: nwse-resize;
+            border-radius: 3px;
+            opacity: 0;
+        }
+
+        .draggable:hover .resize-handle {
+            opacity: 0.9;
+        }
+
+        /* Placeholder styles for form elements */
+        .form-placeholder {
+            background: rgba(255, 255, 255, 0.9);
+            border-radius: 15px;
+            padding: 10px;
+            color: #333;
+            font-size: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            text-align: center;
+            border: 1px dashed #999;
+        }
+
+        #panel {
+            background: rgba(0, 0, 0, 0.95);
+            padding: 20px;
+            border-radius: 10px;
+            font-family: monospace;
+            font-size: 11px;
+            width: 320px;
+            border: 2px solid #0f0;
+            max-height: 667px;
+            overflow-y: auto;
+        }
+
+        #panel h3 {
+            color: #0f0;
+            margin-bottom: 15px;
+        }
+
+        .info {
+            margin: 8px 0;
+            padding: 10px;
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 5px;
+            border-left: 3px solid #0f0;
+        }
+
+        .name {
+            color: #0ff;
+            font-weight: bold;
+            margin-bottom: 5px;
+        }
+
+        button {
+            background: #0f0;
+            color: black;
+            border: none;
+            padding: 8px;
+            border-radius: 5px;
+            cursor: pointer;
+            margin: 5px 5px 5px 0;
+            font-weight: bold;
+            width: 100%;
+        }
+
+        button:hover {
+            background: #0c0;
+        }
+    </style>
+</head>
+
+<body>
+    <div id="container">
+        <div id="phone">
+            <div id="canvas">
+                <!-- Header Elements -->
+                <div id="btn-back" class="draggable" style="left:20px;top:20px;width:40px;height:40px;z-index:20">
+                    <div class="form-placeholder"
+                        style="border-radius:50%;background:rgba(255,255,255,0.2);color:white;">←</div>
+                    <div class="resize-handle"></div>
+                </div>
+                <div id="title-text" class="draggable" style="left:80px;top:25px;width:200px;height:30px;z-index:20">
+                    <div class="form-placeholder"
+                        style="background:transparent;color:white;font-weight:bold;font-size:18px;border:none;text-shadow:0 2px 4px black;">
+                        Escribe a Santa</div>
+                    <div class="resize-handle"></div>
+                </div>
+
+                <!-- Main Form Container -->
+                <div id="form-container" class="draggable"
+                    style="left:20px;top:80px;width:335px;height:500px;z-index:10">
+                    <div class="form-placeholder" style="height:100%;align-items:flex-start;padding-top:20px;">
+                        Form Container Area
+                    </div>
+                    <div class="resize-handle"></div>
+                </div>
+
+                <!-- Form Elements (Inside container conceptually, but independent for positioning) -->
+                <div id="input-name" class="draggable" style="left:40px;top:140px;width:295px;height:45px;z-index:15">
+                    <div class="form-placeholder">Input: Nombre</div>
+                    <div class="resize-handle"></div>
+                </div>
+                <div id="input-email" class="draggable" style="left:40px;top:195px;width:295px;height:45px;z-index:15">
+                    <div class="form-placeholder">Input: Email</div>
+                    <div class="resize-handle"></div>
+                </div>
+                <div id="input-country" class="draggable"
+                    style="left:40px;top:250px;width:140px;height:45px;z-index:15">
+                    <div class="form-placeholder">Select: País</div>
+                    <div class="resize-handle"></div>
+                </div>
+                <div id="input-age" class="draggable" style="left:195px;top:250px;width:140px;height:45px;z-index:15">
+                    <div class="form-placeholder">Input: Edad</div>
+                    <div class="resize-handle"></div>
+                </div>
+
+                <div id="input-message" class="draggable"
+                    style="left:40px;top:330px;width:295px;height:120px;z-index:15">
+                    <div class="form-placeholder">Textarea: Mensaje</div>
+                    <div class="resize-handle"></div>
+                </div>
+
+                <!-- Buttons -->
+                <div id="btn-read" class="draggable" style="left:40px;top:470px;width:100px;height:50px;z-index:15">
+                    <div class="form-placeholder" style="background:#e0e7ff;color:#4338ca;">Leer</div>
+                    <div class="resize-handle"></div>
+                </div>
+                <div id="btn-send" class="draggable" style="left:150px;top:470px;width:185px;height:50px;z-index:15">
+                    <div class="form-placeholder" style="background:#dc2626;color:white;">Enviar a Santa</div>
+                    <div class="resize-handle"></div>
+                </div>
+
+                <div id="btn-upload" class="draggable" style="left:40px;top:540px;width:295px;height:50px;z-index:15">
+                    <div class="form-placeholder" style="border:2px dashed #3b82f6;color:#3b82f6;">Subir Foto</div>
+                    <div class="resize-handle"></div>
+                </div>
+
+            </div>
+        </div>
+        <div>
+            <div id="panel">
+                <h3>📐 Coordenadas Carta</h3>
+                <div id="coords"></div>
+                <button onclick="copy()">📋 Copiar</button>
+                <button onclick="reset()">🔄 Reset</button>
+            </div>
+        </div>
+    </div>
+    <script>
+        const canvas = document.getElementById('canvas');
+        const elements = document.querySelectorAll('.draggable');
+        let active = null, dragging = false, resizing = false, ox = 0, oy = 0, sw = 0, sh = 0;
+
+        elements.forEach(el => {
+            el.addEventListener('mousedown', e => {
+                if (e.target.classList.contains('resize-handle')) return;
+                dragging = true;
+                active = el;
+                const r = el.getBoundingClientRect();
+                ox = e.clientX - r.left;
+                oy = e.clientY - r.top;
+                document.addEventListener('mousemove', move);
+                document.addEventListener('mouseup', up);
+                e.preventDefault();
+            });
+
+            const h = el.querySelector('.resize-handle');
+            if (h) {
+                h.addEventListener('mousedown', e => {
+                    e.stopPropagation();
+                    e.preventDefault();
+                    resizing = true;
+                    active = el;
+                    sw = el.getBoundingClientRect().width;
+                    sh = el.getBoundingClientRect().height;
+                    ox = e.clientX;
+                    oy = e.clientY;
+                    document.addEventListener('mousemove', resize);
+                    document.addEventListener('mouseup', upResize);
+                });
+            }
+        });
+
+        function move(e) {
+            if (!dragging || !active) return;
+            const cr = canvas.getBoundingClientRect();
+            let x = e.clientX - cr.left - ox;
+            let y = e.clientY - cr.top - oy;
+            const r = active.getBoundingClientRect();
+            x = Math.max(0, Math.min(x, cr.width - r.width));
+            y = Math.max(0, Math.min(y, cr.height - r.height));
+            active.style.left = x + 'px';
+            active.style.top = y + 'px';
+            update();
+        }
+
+        function up() {
+            dragging = false;
+            document.removeEventListener('mousemove', move);
+            document.removeEventListener('mouseup', up);
+        }
+
+        function resize(e) {
+            if (!resizing || !active) return;
+            const w = sw + (e.clientX - ox);
+            const h = sh + (e.clientY - oy);
+            if (w > 20 && w < 375) active.style.width = w + 'px';
+            if (h > 20 && h < 667) active.style.height = h + 'px';
+            update();
+        }
+
+        function upResize() {
+            resizing = false;
+            document.removeEventListener('mousemove', resize);
+            document.removeEventListener('mouseup', upResize);
+        }
+
+        function update() {
+            const cr = canvas.getBoundingClientRect();
+            let h = '';
+            elements.forEach(el => {
+                const r = el.getBoundingClientRect();
+                const x = Math.round(r.left - cr.left);
+                const y = Math.round(r.top - cr.top);
+                const w = Math.round(r.width);
+                const hh = Math.round(r.height);
+                const z = el.style.zIndex || 1;
+
+                const xp = (x / 375 * 100).toFixed(1);
+                const yp = (y / 667 * 100).toFixed(1);
+                const wp = (w / 375 * 100).toFixed(1);
+                const hp = (hh / 667 * 100).toFixed(1);
+
+                h += `<div class="info">
+            <div class="name">${el.id.toUpperCase()}</div>
+            <div>X:${x} Y:${y} (${xp}%, ${yp}%)</div>
+            <div>W:${w} H:${hh} (${wp}%, ${hp}%)</div>
+        </div>`;
+            });
+            document.getElementById('coords').innerHTML = h;
+        }
+
+        function copy() {
+            const cr = canvas.getBoundingClientRect();
+            let t = 'COORDENADAS LETTER VIEW:\n\n';
+            elements.forEach(el => {
+                const r = el.getBoundingClientRect();
+                const x = Math.round(r.left - cr.left);
+                const y = Math.round(r.top - cr.top);
+                const w = Math.round(r.width);
+                const h = Math.round(r.height);
+
+                const xp = (x / 375 * 100).toFixed(1);
+                const yp = (y / 667 * 100).toFixed(1);
+                const wp = (w / 375 * 100).toFixed(1);
+                const hp = (hh / 667 * 100).toFixed(1);
+
+                t += `${el.id.toUpperCase()}:\nleft: '${xp}%', top: '${yp}%', width: '${wp}%', height: '${hp}%'\n\n`;
+            });
+            navigator.clipboard.writeText(t).then(() => alert('✅ Copiado!'));
+        }
+
+        function reset() {
+            location.reload();
+        }
+
+        update();
+    </script>
+</body>
+
+</html>

@@ -1,0 +1,551 @@
+<!DOCTYPE html>
+<html lang="es">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Editor Visual - Splash Screen (Móvil)</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: Arial, sans-serif;
+            background: #1a1a1a;
+            color: white;
+            overflow: auto;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        #container {
+            display: flex;
+            gap: 20px;
+            align-items: flex-start;
+        }
+
+        #phone-frame {
+            background: #222;
+            border-radius: 30px;
+            padding: 15px;
+            box-shadow: 0 10px 50px rgba(0, 0, 0, 0.5);
+            border: 8px solid #333;
+        }
+
+        #canvas {
+            position: relative;
+            width: 375px;
+            height: 667px;
+            background-image: url('/images/splash-bg.jpg');
+            background-size: cover;
+            background-position: center;
+            overflow: hidden;
+            border-radius: 15px;
+        }
+
+        .draggable {
+            position: absolute;
+            cursor: grab;
+            user-select: none;
+            border: 2px solid transparent;
+            transition: border-color 0.2s;
+        }
+
+        .draggable:active {
+            cursor: grabbing;
+        }
+
+        .draggable:hover {
+            border-color: #00ff00;
+            box-shadow: 0 0 10px rgba(0, 255, 0, 0.5);
+        }
+
+        .draggable.active {
+            border-color: #ffff00;
+            box-shadow: 0 0 15px rgba(255, 255, 0, 0.7);
+        }
+
+        .draggable.dragging {
+            opacity: 0.8;
+            cursor: grabbing;
+        }
+
+        .draggable img {
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+            display: block;
+        }
+
+        #info-panel {
+            background: rgba(0, 0, 0, 0.95);
+            padding: 20px;
+            border-radius: 10px;
+            font-family: monospace;
+            font-size: 11px;
+            width: 320px;
+            border: 2px solid #00ff00;
+            max-height: 667px;
+            overflow-y: auto;
+        }
+
+        #info-panel h3 {
+            margin-bottom: 15px;
+            color: #00ff00;
+            font-size: 14px;
+        }
+
+        .element-info {
+            margin: 8px 0;
+            padding: 10px;
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 5px;
+            border-left: 3px solid #00ff00;
+            cursor: pointer;
+            transition: background 0.2s;
+        }
+
+        .element-info:hover {
+            background: rgba(255, 255, 255, 0.15);
+        }
+
+        .element-info.active {
+            border-left-color: #ffff00;
+            background: rgba(255, 255, 0, 0.2);
+        }
+
+        .element-name {
+            color: #00ffff;
+            font-weight: bold;
+            margin-bottom: 5px;
+            font-size: 12px;
+        }
+
+        .controls {
+            margin-top: 15px;
+            padding-top: 15px;
+            border-top: 1px solid #333;
+        }
+
+        .controls button {
+            background: #00ff00;
+            color: black;
+            border: none;
+            padding: 8px 12px;
+            border-radius: 5px;
+            cursor: pointer;
+            margin: 5px 5px 5px 0;
+            font-weight: bold;
+            font-size: 11px;
+            width: 100%;
+        }
+
+        .controls button:hover {
+            background: #00cc00;
+        }
+
+        .z-index-controls {
+            margin-top: 10px;
+            padding: 10px;
+            background: rgba(255, 255, 255, 0.05);
+            border-radius: 5px;
+        }
+
+        .z-index-controls h4 {
+            color: #00ffff;
+            font-size: 11px;
+            margin-bottom: 8px;
+        }
+
+        .z-index-controls button {
+            background: #0088ff;
+            padding: 5px 10px;
+            font-size: 10px;
+            width: auto;
+            margin: 2px;
+        }
+
+        .z-index-controls button:hover {
+            background: #0066cc;
+        }
+
+        .resize-handle {
+            position: absolute;
+            bottom: -5px;
+            right: -5px;
+            width: 25px;
+            height: 25px;
+            background: #00ff00;
+            cursor: nwse-resize;
+            border-radius: 3px;
+            opacity: 0;
+            transition: opacity 0.2s;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .resize-handle:after {
+            content: "⇲";
+            color: black;
+            font-size: 14px;
+            font-weight: bold;
+        }
+
+        .draggable:hover .resize-handle,
+        .draggable.active .resize-handle {
+            opacity: 0.9;
+        }
+
+        #instructions {
+            background: rgba(0, 0, 0, 0.95);
+            padding: 15px;
+            border-radius: 10px;
+            border: 2px solid #00ff00;
+            margin-top: 15px;
+            width: 320px;
+        }
+
+        #instructions h4 {
+            color: #00ff00;
+            margin-bottom: 10px;
+            font-size: 13px;
+        }
+
+        #instructions ul {
+            list-style: none;
+            padding-left: 0;
+            font-size: 11px;
+        }
+
+        #instructions li {
+            margin: 5px 0;
+            padding-left: 20px;
+            position: relative;
+        }
+
+        #instructions li:before {
+            content: "▸";
+            position: absolute;
+            left: 0;
+            color: #00ff00;
+        }
+    </style>
+</head>
+
+<body>
+    <div id="container">
+        <div>
+            <div id="phone-frame">
+                <div id="canvas">
+                    <!-- Elementos arrastrables -->
+                    <div id="title" class="draggable"
+                        style="left: 50%; top: 40px; width: 320px; transform: translateX(-50%); z-index: 5;">
+                        <img src="/images/title.png" alt="Title">
+                        <div class="resize-handle"></div>
+                    </div>
+
+                    <div id="logo" class="draggable"
+                        style="left: 50%; top: 180px; width: 280px; transform: translateX(-50%); z-index: 6;">
+                        <img src="/images/logo.png" alt="Logo">
+                        <div class="resize-handle"></div>
+                    </div>
+
+                    <div id="frame" class="draggable"
+                        style="left: 50%; bottom: 100px; width: 300px; transform: translateX(-50%); z-index: 1;">
+                        <img src="/images/panel-frame.png" alt="Frame">
+                        <div class="resize-handle"></div>
+                    </div>
+
+                    <div id="btn-seleccionar-idioma" class="draggable"
+                        style="left: 50%; bottom: 140px; width: 157px; transform: translateX(-50%); z-index: 3;">
+                        <img src="/images/btn-seleccionar-idioma.png" alt="Seleccionar Idioma">
+                        <div class="resize-handle"></div>
+                    </div>
+
+                    <div id="idioma-texto" class="draggable"
+                        style="left: 50%; bottom: 115px; width: 70px; transform: translateX(-50%); z-index: 4;">
+                        <div
+                            style="background: rgba(185, 28, 28, 0.9); color: white; font-weight: bold; font-size: 10px; text-transform: uppercase; letter-spacing: 0.05em; padding: 2px 8px; border-radius: 6px; box-shadow: 0 4px 6px rgba(0,0,0,0.3); text-align: center; text-shadow: 2px 2px 4px rgba(0,0,0,0.8);">
+                            ESPAÑOL
+                        </div>
+                        <div class="resize-handle"></div>
+                    </div>
+
+                    <div id="btn-comenzar" class="draggable"
+                        style="left: 50%; bottom: 90px; width: 196px; transform: translateX(-50%); z-index: 2;">
+                        <img src="/images/btn-comenzar.png" alt="Comenzar">
+                        <div class="resize-handle"></div>
+                    </div>
+                </div>
+            </div>
+
+            <div id="instructions">
+                <h4>🎨 Instrucciones</h4>
+                <ul>
+                    <li>✋ Arrastra elementos para moverlos</li>
+                    <li>⇲ Arrastra esquina para redimensionar</li>
+                    <li>🔝 Ajusta orden con botones abajo</li>
+                    <li>📋 Copia coordenadas al terminar</li>
+                </ul>
+            </div>
+        </div>
+
+        <div>
+            <div id="info-panel">
+                <h3>📐 Coordenadas de Elementos</h3>
+                <div id="coords"></div>
+
+                <div class="z-index-controls">
+                    <h4>🔝 Orden (selecciona elemento)</h4>
+                    <button onclick="moveUp()">⬆️ Adelante</button>
+                    <button onclick="moveDown()">⬇️ Atrás</button>
+                    <button onclick="moveToTop()">⏫ Al frente</button>
+                    <button onclick="moveToBottom()">⏬ Al fondo</button>
+                </div>
+
+                <div class="controls">
+                    <button onclick="copyCoordinates()">📋 Copiar Coordenadas</button>
+                    <button onclick="resetPositions()">🔄 Reset</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const canvas = document.getElementById('canvas');
+        const elements = document.querySelectorAll('.draggable');
+        let activeElement = null;
+        let isResizing = false;
+        let isDragging = false;
+        let offsetX = 0;
+        let offsetY = 0;
+        let startWidth = 0;
+
+        elements.forEach(element => {
+            element.addEventListener('mousedown', onMouseDown);
+
+            const resizeHandle = element.querySelector('.resize-handle');
+            if (resizeHandle) {
+                resizeHandle.addEventListener('mousedown', onResizeStart);
+            }
+        });
+
+        function onMouseDown(e) {
+            if (e.target.classList.contains('resize-handle')) return;
+
+            isDragging = true;
+            activeElement = this;
+
+            selectElement(activeElement);
+            activeElement.classList.add('dragging');
+
+            const rect = activeElement.getBoundingClientRect();
+            offsetX = e.clientX - rect.left;
+            offsetY = e.clientY - rect.top;
+
+            document.addEventListener('mousemove', onMouseMove);
+            document.addEventListener('mouseup', onMouseUp);
+
+            e.preventDefault();
+        }
+
+        function onMouseMove(e) {
+            if (!isDragging || !activeElement) return;
+
+            const canvasRect = canvas.getBoundingClientRect();
+
+            let newX = e.clientX - canvasRect.left - offsetX;
+            let newY = e.clientY - canvasRect.top - offsetY;
+
+            const rect = activeElement.getBoundingClientRect();
+            const maxX = canvasRect.width - rect.width;
+            const maxY = canvasRect.height - rect.height;
+
+            newX = Math.max(0, Math.min(newX, maxX));
+            newY = Math.max(0, Math.min(newY, maxY));
+
+            activeElement.style.left = newX + 'px';
+            activeElement.style.top = newY + 'px';
+            activeElement.style.bottom = 'auto';
+            activeElement.style.transform = 'none';
+
+            updateCoordinates();
+        }
+
+        function onMouseUp() {
+            if (activeElement) {
+                activeElement.classList.remove('dragging');
+            }
+            isDragging = false;
+            document.removeEventListener('mousemove', onMouseMove);
+            document.removeEventListener('mouseup', onMouseUp);
+        }
+
+        function onResizeStart(e) {
+            e.stopPropagation();
+            e.preventDefault();
+
+            isResizing = true;
+            activeElement = this.parentElement;
+
+            selectElement(activeElement);
+
+            const rect = activeElement.getBoundingClientRect();
+            startWidth = rect.width;
+            offsetX = e.clientX;
+
+            document.addEventListener('mousemove', onResize);
+            document.addEventListener('mouseup', onResizeEnd);
+        }
+
+        function onResize(e) {
+            if (!isResizing || !activeElement) return;
+
+            const deltaX = e.clientX - offsetX;
+            const newWidth = startWidth + deltaX;
+
+            if (newWidth > 30 && newWidth < 500) {
+                activeElement.style.width = newWidth + 'px';
+            }
+
+            updateCoordinates();
+        }
+
+        function onResizeEnd() {
+            isResizing = false;
+            document.removeEventListener('mousemove', onResize);
+            document.removeEventListener('mouseup', onResizeEnd);
+        }
+
+        function selectElement(element) {
+            elements.forEach(el => el.classList.remove('active'));
+            element.classList.add('active');
+            activeElement = element;
+            updateCoordinates();
+        }
+
+        function moveUp() {
+            if (!activeElement) {
+                alert('⚠️ Selecciona un elemento primero');
+                return;
+            }
+            const currentZ = parseInt(activeElement.style.zIndex || 1);
+            activeElement.style.zIndex = currentZ + 1;
+            updateCoordinates();
+        }
+
+        function moveDown() {
+            if (!activeElement) {
+                alert('⚠️ Selecciona un elemento primero');
+                return;
+            }
+            const currentZ = parseInt(activeElement.style.zIndex || 1);
+            if (currentZ > 0) {
+                activeElement.style.zIndex = currentZ - 1;
+            }
+            updateCoordinates();
+        }
+
+        function moveToTop() {
+            if (!activeElement) {
+                alert('⚠️ Selecciona un elemento primero');
+                return;
+            }
+            let maxZ = 0;
+            elements.forEach(el => {
+                const z = parseInt(el.style.zIndex || 1);
+                if (z > maxZ) maxZ = z;
+            });
+            activeElement.style.zIndex = maxZ + 1;
+            updateCoordinates();
+        }
+
+        function moveToBottom() {
+            if (!activeElement) {
+                alert('⚠️ Selecciona un elemento primero');
+                return;
+            }
+            activeElement.style.zIndex = 0;
+            updateCoordinates();
+        }
+
+        function updateCoordinates() {
+            const canvasRect = canvas.getBoundingClientRect();
+            const coordsDiv = document.getElementById('coords');
+
+            let html = '';
+            elements.forEach(element => {
+                const rect = element.getBoundingClientRect();
+                const x = Math.round(rect.left - canvasRect.left);
+                const y = Math.round(rect.top - canvasRect.top);
+                const w = Math.round(rect.width);
+                const h = Math.round(rect.height);
+                const z = element.style.zIndex || 1;
+
+                const isActive = element.classList.contains('active');
+
+                html += `
+                    <div class="element-info ${isActive ? 'active' : ''}" onclick="selectElementById('${element.id}')">
+                        <div class="element-name">${element.id.toUpperCase()} (z: ${z})</div>
+                        <div>X: ${x}px, Y: ${y}px</div>
+                        <div>W: ${w}px, H: ${h}px</div>
+                    </div>
+                `;
+            });
+
+            coordsDiv.innerHTML = html;
+        }
+
+        function selectElementById(id) {
+            const element = document.getElementById(id);
+            if (element) {
+                selectElement(element);
+            }
+        }
+
+        function copyCoordinates() {
+            const canvasRect = canvas.getBoundingClientRect();
+
+            let text = 'COORDENADAS FINALES (móvil 375x667):\n\n';
+            elements.forEach(element => {
+                const rect = element.getBoundingClientRect();
+                const x = Math.round(rect.left - canvasRect.left);
+                const y = Math.round(rect.top - canvasRect.top);
+                const w = Math.round(rect.width);
+                const h = Math.round(rect.height);
+                const z = element.style.zIndex || 1;
+
+                text += `${element.id.toUpperCase()}: X: ${x}, Y: ${y}, W: ${w}, H: ${h}, Z: ${z}\n`;
+            });
+
+            navigator.clipboard.writeText(text).then(() => {
+                alert('✅ Coordenadas copiadas!\n\nPégalas en el chat para actualizar el código.');
+            });
+        }
+
+        function resetPositions() {
+            document.getElementById('title').style = 'left: 50%; top: 40px; width: 320px; transform: translateX(-50%); z-index: 5;';
+            document.getElementById('logo').style = 'left: 50%; top: 180px; width: 280px; transform: translateX(-50%); z-index: 6;';
+            document.getElementById('frame').style = 'left: 50%; bottom: 100px; width: 300px; transform: translateX(-50%); z-index: 1;';
+            document.getElementById('btn-seleccionar-idioma').style = 'left: 50%; bottom: 140px; width: 157px; transform: translateX(-50%); z-index: 3;';
+            document.getElementById('idioma-texto').style = 'left: 50%; bottom: 115px; width: 70px; transform: translateX(-50%); z-index: 4;';
+            document.getElementById('btn-comenzar').style = 'left: 50%; bottom: 90px; width: 196px; transform: translateX(-50%); z-index: 2;';
+
+            elements.forEach(el => el.classList.remove('active'));
+            activeElement = null;
+            updateCoordinates();
+        }
+
+        // Inicializar
+        updateCoordinates();
+    </script>
+</body>
+
+</html>

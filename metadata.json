@@ -1,0 +1,8 @@
+{
+  "name": "Santa's Mail & Calls",
+  "description": "Interactive Christmas experience with AI Santa, letters, chats, and live calls.",
+  "requestFramePermissions": [
+    "camera",
+    "microphone"
+  ]
+}
