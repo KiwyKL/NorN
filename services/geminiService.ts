@@ -1,103 +1,92 @@
-import { GoogleGenAI, Modality } from "@google/genai";
 import { CallContextData } from "../types";
+import { API_ENDPOINTS } from "./apiConfig";
+import { GoogleGenAI, Modality } from "@google/genai";
 
-// --- CONFIGURACIÓN ELEVENLABS ---
-const ELEVENLABS_API_KEY = import.meta.env.VITE_ELEVENLABS_API_KEY || '';
+// For Live API only - still needs direct connection with ephemeral tokens
+let liveClient: GoogleGenAI | null = null;
 
-export const ELEVENLABS_VOICE_IDS = {
-  santa: import.meta.env.VITE_ELEVENLABS_VOICE_ID_SANTA || '',
-  grinch: import.meta.env.VITE_ELEVENLABS_VOICE_ID_GRINCH || '',
-  spicy_santa: import.meta.env.VITE_ELEVENLABS_VOICE_ID_SPICY || '',
-} as const;
+// Get ephemeral token for Live API
+export const getLiveClient = async (): Promise<GoogleGenAI> => {
+  try {
+    const response = await fetch(API_ENDPOINTS.liveToken, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' }
+    });
 
-// --- CONFIGURACIÓN GEMINI (GOOGLE) ---
-const GEMINI_API_KEY = import.meta.env.VITE_GEMINI_API_KEY;
+    if (!response.ok) {
+      throw new Error('Failed to get live token');
+    }
 
-if (!GEMINI_API_KEY) {
-  console.error("❌ ERROR CRÍTICO: No se encontró VITE_GEMINI_API_KEY en .env.local");
-}
-
-if (!ELEVENLABS_API_KEY) {
-  console.warn("⚠️ ADVERTENCIA: No se encontró VITE_ELEVENLABS_API_KEY en .env.local");
-}
-
-// Inicializar cliente
-const ai = new GoogleGenAI({ apiKey: GEMINI_API_KEY || '' });
-
-// --- 1.  TEXT-TO-SPEECH CON ELEVENLABS ---
-export const generateElevenLabsAudio = async (
-  text: string,
-  voiceId: string,
-  language: string = 'es'
-): Promise<ArrayBuffer> => {
-  if (!ELEVENLABS_API_KEY || !voiceId) {
-    throw new Error("ElevenLabs API Key or Voice ID missing in .env.local");
+    const { token } = await response.json();
+    liveClient = new GoogleGenAI({ apiKey: token });
+    return liveClient;
+  } catch (error) {
+    console.error('Error getting live client:', error);
+    throw error;
   }
-
-  const model_id = language === 'es' ? 'eleven_multilingual_v2' : 'eleven_turbo_v2_5';
-
-  const response = await fetch(`https://api.elevenlabs.io/v1/text-to-speech/${voiceId}/stream?optimize_streaming_latency=3&output_format=mp3_44100_128`, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'xi-api-key': ELEVENLABS_API_KEY,
-    },
-    body: JSON.stringify({
-      text: text,
-      model_id: model_id,
-      voice_settings: {
-        stability: 0.6,
-        similarity_boost: 0.8,
-        style: 0.2,
-        use_speaker_boost: true
-      }
-    }),
-  });
-
-  if (!response.ok) {
-    const errorText = await response.text();
-    throw new Error(`ElevenLabs API Error: ${response.status} - ${errorText}`);
-  }
-
-  return await response.arrayBuffer();
 };
 
-// --- 2. TRANSCRIPCIÓN DE AUDIO (BLOB) ---
+// --- 1. GENERAR TEXTO ---
+export const generateText = async (prompt: string, model?: string): Promise<string> => {
+  try {
+    const response = await fetch(API_ENDPOINTS.generateContent, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ prompt, model })
+    });
+
+    if (!response.ok) {
+      throw new Error('Failed to generate text');
+    }
+
+    const data = await response.json();
+    return data.text;
+  } catch (error) {
+    console.error('Error generating text:', error);
+    throw error;
+  }
+};
+
+// --- 2. TRANSCRIBIR AUDIO ---
 export const transcribeAudioBlob = async (audioBlob: Blob): Promise<string> => {
-  const reader = new FileReader();
-  const base64Promise = new Promise<string>((resolve, reject) => {
-    reader.onloadend = () => {
-      if (typeof reader.result === 'string') {
-        resolve(reader.result.split(',')[1]);
-      } else {
-        reject(new Error('Failed to convert blob to base64'));
-      }
-    };
-    reader.onerror = reject;
-  });
+  try {
+    // Convert blob to base64
+    const base64Audio = await new Promise<string>((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        if (typeof reader.result === 'string') {
+          const base64 = reader.result.split(',')[1];
+          resolve(base64);
+        } else {
+          reject(new Error('Failed to convert blob to base64'));
+        }
+      };
+      reader.onerror = reject;
+      reader.readAsDataURL(audioBlob);
+    });
 
-  reader.readAsDataURL(audioBlob);
-  const base64Audio = await base64Promise;
+    const response = await fetch(API_ENDPOINTS.transcribeAudio, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        audioData: base64Audio,
+        mimeType: audioBlob.type || 'audio/webm'
+      })
+    });
 
-  const mimeType = audioBlob.type || 'audio/webm';
+    if (!response.ok) {
+      throw new Error('Failed to transcribe audio');
+    }
 
-  const response = await ai.models.generateContent({
-    model: 'gemini-2.0-flash-exp',
-    contents: [
-      {
-        role: 'user',
-        parts: [
-          { inlineData: { mimeType: mimeType, data: base64Audio } },
-          { text: "Transcribe this audio exactly. Return ONLY the transcribed text, nothing else." }
-        ]
-      }
-    ]
-  });
-
-  return response.text || '';
+    const data = await response.json();
+    return data.text || '';
+  } catch (error) {
+    console.error('Error transcribing audio:', error);
+    throw error;
+  }
 };
 
-// --- 3. CHATBOT CON PERSONA (Gemini 2.0 Flash) ---
+// --- 3. CHATBOT CON PERSONA ---
 export const createPersonaChatSession = (
   context: CallContextData,
   language: string = 'Spanish'
@@ -123,17 +112,7 @@ export const createPersonaChatSession = (
 
       const fullPrompt = `${conversationContext}\n\n User: ${userMessage}\nAssistant:`;
 
-      const response = await ai.models.generateContent({
-        model: 'gemini-2.0-flash-exp',
-        contents: [
-          {
-            role: 'user',
-            parts: [{ text: fullPrompt }]
-          }
-        ]
-      });
-
-      const responseText = response.text || '';
+      const responseText = await generateText(fullPrompt);
 
       history.push({ role: 'user', text: userMessage });
       history.push({ role: 'model', text: responseText });
@@ -145,40 +124,49 @@ export const createPersonaChatSession = (
 
 // --- 4. ANALIZAR CARTA (Visión) ---
 export const analyzeLetterImage = async (base64Image: string) => {
-  const response = await ai.models.generateContent({
-    model: 'gemini-2.0-flash-exp',
-    contents: {
-      parts: [
-        { inlineData: { mimeType: 'image/jpeg', data: base64Image } },
-        { text: "Read this letter to Santa and summarize what the child wants." }
-      ]
+  try {
+    const response = await fetch(API_ENDPOINTS.analyzeImage, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        imageData: base64Image,
+        prompt: "Read this letter to Santa and summarize what the child wants."
+      })
+    });
+
+    if (!response.ok) {
+      throw new Error('Failed to analyze image');
     }
-  });
-  return response.text;
+
+    const data = await response.json();
+    return data.text;
+  } catch (error) {
+    console.error('Error analyzing image:', error);
+    throw error;
+  }
 };
 
-// --- 5. GENERAR IMAGEN (Gemini 2.5 Flash Image - Nano Banana) ---
+// --- 5. GENERAR IMAGEN ---
 export const generateChristmasImage = async (textOnLetter: string): Promise<string> => {
   const prompt = `Create a cinematic square photo of Santa Claus holding a letter. The letter contains the following text: "${textOnLetter}". Use warm Christmas lighting. Santa should look friendly and jolly. Professional photo quality. The image should fill the entire square frame.`;
 
-  const response = await ai.models.generateContent({
-    model: 'gemini-2.5-flash-image',
-    contents: prompt,
-    config: {
-      imageConfig: {
-        aspectRatio: '1:1'
-      }
-    }
-  });
+  try {
+    const response = await fetch(API_ENDPOINTS.generateImage, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ prompt, aspectRatio: '1:1' })
+    });
 
-  // Extract image from response
-  for (const part of response.candidates[0].content.parts) {
-    if (part.inlineData) {
-      return part.inlineData.data;
+    if (!response.ok) {
+      throw new Error('Failed to generate image');
     }
+
+    const data = await response.json();
+    return data.imageData;
+  } catch (error) {
+    console.error('Error generating image:', error);
+    throw error;
   }
-
-  throw new Error("No image generated in response");
 };
 
 // --- 6. INSTRUCCIONES DE PERSONA (SYNC VERSION) ---
@@ -208,7 +196,7 @@ function generatePersonaInstructionSync(context: CallContextData, language: stri
       notSpecified: 'not specified',
       santa: `Personality: Classic Santa Claus. Warm, kind, jolly. Ho ho ho! Reference the child's personal details in the conversation.`,
       grinch: `Personality: Cynical, grumpy, complaining about noise / joy. Sarcastic but lovable. Short sentences. Reference their gift requests sarcastically.`,
-      spicy: `Personality: Very funny and cheeky stand-up comedian. High energy, charismatic and flirtatious. Make many jokes and funny comments about Christmas, elves, and reindeer. AVOID jokes about age. Your goal is to make them laugh with witty remarks and a very playful tone. Use the user's name frequently.`
+      spicy: `Personality: Comedian. High energy, fast pace. Jokes about elves, reindeer. Charismatic, flirty(lightly). Use the child's name frequently.`
     },
     French: {
       baseInstruction: `Tu es un assistant de Noël. IMPORTANT: Tu DOIS répondre TOUJOURS en français, sans exception.`,
@@ -221,7 +209,7 @@ function generatePersonaInstructionSync(context: CallContextData, language: stri
       notSpecified: 'non spécifié',
       santa: `Personnalité: Père Noël classique. Chaleureux, gentil, joyeux. Ho ho ho! Mentionne les détails personnels de l'enfant dans la conversation.`,
       grinch: `Personnalité: Cynique, grincheux, se plaignant du bruit / joie. Sarcastique mais adorable. Phrases courtes. Mentionne leurs demandes de cadeaux avec sarcasme.`,
-      spicy: `Personnalité: Comédien de stand-up très drôle et coquin. Haute énergie, charismatique et charmeur. Fais beaucoup de blagues et de commentaires drôles sur Noël, les lutins et les rennes. ÉVITE les blagues sur l'âge. Ton but est de faire rire avec des remarques spirituelles et un ton très enjoué. Utilise fréquemment le nom de l'utilisateur.`
+      spicy: `Personnalité: Comédien. Haute énergie, rythme rapide. Blagues sur les elfes, rennes. Charismatique, légèrement flirteur. Utilise fréquemment le nom de l'enfant.`
     },
     German: {
       baseInstruction: `Du bist ein Weihnachtsassistent. WICHTIG: Du MUSST IMMER auf Deutsch antworten, ohne Ausnahme.`,
@@ -234,7 +222,7 @@ function generatePersonaInstructionSync(context: CallContextData, language: stri
       notSpecified: 'nicht angegeben',
       santa: `Persönlichkeit: Klassischer Weihnachtsmann. Warm, freundlich, fröhlich. Ho ho ho! Erwähne persönliche Details des Kindes im Gespräch.`,
       grinch: `Persönlichkeit: Zynisch, mürrisch, beschwerst dich über Lärm / Freude. Sarkastisch aber liebenswert. Kurze Sätze. Erwähne ihre Geschenkwünsche sarkastisch.`,
-      spicy: `Persönlichkeit: Sehr lustiger und frecher Stand-up-Comedian. Hohe Energie, charismatisch und kokett. Mache viele Witze und lustige Kommentare über Weihnachten, Elfen und Rentiere. VERMEIDE Witze über das Alter. Dein Ziel ist es, mit witzigen Bemerkungen und einem sehr verspielten Ton zum Lachen zu bringen. Verwende häufig den Namen des Benutzers.`
+      spicy: `Persönlichkeit: Komiker. Hohe Energie, schnelles Tempo. Witze über Elfen, Rentiere. Charismatisch, leicht kokett. Verwende häufig den Namen des Kindes.`
     },
     Italian: {
       baseInstruction: `Sei un assistente natalizio. IMPORTANTE: Devi rispondere SEMPRE in italiano, senza eccezioni.`,
@@ -247,7 +235,7 @@ function generatePersonaInstructionSync(context: CallContextData, language: stri
       notSpecified: 'non specificato',
       santa: `Personalità: Babbo Natale classico. Caloroso, gentile, allegro. Ho ho ho! Menziona i dettagli personali del bambino nella conversazione.`,
       grinch: `Personalità: Cinico, brontolone, lamentandoti del rumore / gioia. Sarcastico ma adorabile. Frasi brevi. Menziona i loro regali richiesti con sarcasmo.`,
-      spicy: `Personalità: Comico stand-up molto divertente e sfacciato. Alta energia, carismatico e civettuolo. Fai molte battute e commenti divertenti su Natale, elfi e renne. EVITA battute sull'età. Il tuo obiettivo è far ridere con osservazioni argute e un tono molto giocoso. Usa frequentemente il nome dell'utente.`
+      spicy: `Personalità: Comico. Alta energia, ritmo veloce. Battute su elfi, renne. Carismatico, leggermente civettuolo. Usa frequentemente il nome del bambino.`
     },
     Portuguese: {
       baseInstruction: `Você é um assistente de Natal. IMPORTANTE: Você DEVE responder SEMPRE em português, sem exceção.`,
@@ -260,7 +248,7 @@ function generatePersonaInstructionSync(context: CallContextData, language: stri
       notSpecified: 'não especificado',
       santa: `Personalidade: Papai Noel clássico. Caloroso, gentil, alegre. Ho ho ho! Mencione detalhes pessoais da criança na conversa.`,
       grinch: `Personalidade: Cínico, resmungão, reclamando de barulho / alegria. Sarcástico mas adorável. Frases curtas. Mencione os presentes pedidos com sarcasmo.`,
-      spicy: `Personalidade: Comediante stand-up muito engraçado e atrevido. Alta energia, carismático e sedutor. Faça muitas piadas e comentários engraçados sobre o Natal, elfos e renas. EVITE piadas sobre a idade. Seu objetivo é fazer rir com observações espirituosas e um tom muito brincalhão. Use frequentemente o nome do usuário.`
+      spicy: `Personalidade: Comediante. Alta energia, ritmo rápido. Piadas sobre elfos, renas. Carismático, levemente sedutor. Use frequentemente o nome da criança.`
     }
   };
 
@@ -287,97 +275,29 @@ export const generatePersonaInstruction = async (context: CallContextData, langu
   return generatePersonaInstructionSync(context, language);
 };
 
-// --- 8. GENERAR SPEECH (Text-to-Speech) ---
-export const generateSpeech = async (text: string, voiceId: string = ELEVENLABS_VOICE_IDS.santa, language: string = 'es'): Promise<ArrayBuffer> => {
-  return await generateElevenLabsAudio(text, voiceId, language);
-};
-
-// --- 9. EDITAR IMAGEN (Combinar carta del usuario con Santa) ---
+// --- 8. EDITAR IMAGEN (Combinar carta del usuario con Santa) ---
 export const editImageWithPrompt = async (base64Image: string, prompt: string): Promise<string> => {
-  // Use Gemini 2.5 Flash Image para editar/combinar la imagen
-  const contents = [
-    {
-      text: prompt
-    },
-    {
-      inlineData: {
-        mimeType: 'image/jpeg',
-        data: base64Image
-      }
-    }
-  ];
+  try {
+    const response = await fetch(API_ENDPOINTS.analyzeImage, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        imageData: base64Image,
+        prompt: prompt
+      })
+    });
 
-  const response = await ai.models.generateContent({
-    model: 'gemini-2.5-flash-image',
-    contents: contents,
-    config: {
-      imageConfig: {
-        aspectRatio: '1:1'
-      }
+    if (!response.ok) {
+      throw new Error('Failed to edit image');
     }
-  });
 
-  // Extract image from response
-  for (const part of response.candidates[0].content.parts) {
-    if (part.inlineData) {
-      return part.inlineData.data;
-    }
+    const data = await response.json();
+    return data.text;
+  } catch (error) {
+    console.error('Error editing image:', error);
+    throw error;
   }
-
-  throw new Error("No image generated in response");
 };
 
-// --- 10. CHAT SESSION (TEXT ONLY) - NOW WITH MULTI-LANGUAGE SUPPORT ---
-export const createChatSession = (name: string, country: string, age: string, language: string = 'Spanish') => {
-  const languageInstructions: Record<string, string> = {
-    Spanish: `Eres Santa Claus/Papá Noel. IMPORTANTE: Debes responder SIEMPRE en español, sin excepción. Estás hablando con un niño/a llamado/a ${name} de ${country} que tiene ${age} años. Sé cálido, amigable, y pregúntales qué quieren para Navidad. Mantén las respuestas relativamente cortas. Usa expresiones navideñas como "Ho ho ho!".`,
-    English: `You are Santa Claus. IMPORTANT: You MUST respond ALWAYS in English, without exception. You are talking to a child named ${name} from ${country} who is ${age} years old. Be warm, friendly, and ask them what they want for Christmas. Keep responses relatively short. Use Christmas expressions like "Ho ho ho!".`,
-    French: `Tu es le Père Noël. IMPORTANT: Tu DOIS répondre TOUJOURS en français, sans exception. Tu parles à un enfant nommé ${name} de ${country} qui a ${age} ans. Sois chaleureux, amical, et demande-lui ce qu'il veut pour Noël. Garde les réponses relativement courtes. Utilise des expressions de Noël comme "Ho ho ho!".`,
-    German: `Du bist der Weihnachtsmann. WICHTIG: Du MUSST IMMER auf Deutsch antworten, ohne Ausnahme. Du sprichst mit einem Kind namens ${name} aus ${country}, das ${age} Jahre alt ist. Sei warm, freundlich und frage, was es zu Weihnachten möchte. Halte die Antworten relativ kurz. Verwende Weihnachtsausdrücke wie "Ho ho ho!".`,
-    Italian: `Sei Babbo Natale. IMPORTANTE: Devi rispondere SEMPRE in italiano, senza eccezioni. Stai parlando con un bambino di nome ${name} da ${country} che ha ${age} anni. Sii caloroso, amichevole e chiedigli cosa vuole per Natale. Mantieni le risposte relativamente brevi. Usa espressioni natalizie come "Ho ho ho!".`,
-    Portuguese: `Você é o Papai Noel. IMPORTANTE: Você DEVE responder SEMPRE em português, sem exceção. Você está falando com uma criança chamada ${name} de ${country} que tem ${age} anos. Seja caloroso,  amigável e pergunte o que ela quer para o Natal. Mantenha as respostas relativamente curtas. Use expressões natalinas como "Ho ho ho!".`
-  };
-
-  const systemInstruction = languageInstructions[language] || languageInstructions.Spanish;
-  const history: any[] = [];
-
-  return {
-    sendMessage: async (userMessage: any) => {
-      let conversationContext = systemInstruction;
-
-      if (history.length > 0) {
-        const conversationHistory = history.map((msg: any) => {
-          if (msg.role === 'user') {
-            return `User: ${msg.text}`;
-          } else {
-            return `Assistant: ${msg.text}`;
-          }
-        }).join('\n');
-
-        conversationContext = `${systemInstruction}\n\n${conversationHistory}`;
-      }
-
-      const fullPrompt = `${conversationContext}\n\nUser: ${userMessage.parts[0].text}\nAssistant:`;
-
-      const response = await ai.models.generateContent({
-        model: 'gemini-2.0-flash-exp',
-        contents: [
-          {
-            role: 'user',
-            parts: [{ text: fullPrompt }]
-          }
-        ]
-      });
-
-      const responseText = response.text || '';
-
-      history.push({ role: 'user', text: userMessage.parts[0].text });
-      history.push({ role: 'model', text: responseText });
-
-      return { text: responseText };
-    }
-  };
-};
-
-// --- 11. EXPORTAR CLIENTE ---
-export const getLiveClient = () => ai;
+// Export Modality for use in CallView
+export { Modality };
