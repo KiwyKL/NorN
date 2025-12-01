@@ -71,18 +71,6 @@ const sendToWebhook = async (data: LeadData): Promise<void> => {
 
     if (!response.ok) {
         const errorText = await response.text();
-        console.error('❌ Webhook error:', errorText);
-        throw new Error(`Webhook Error: ${response.status} - ${errorText}`);
-    }
-
-    const responseText = await response.text();
-    console.log("✅ Lead sent successfully! Response:", responseText);
-};
-
-export const downloadLeadsCSV = (): void => {
-    const leads = getStoredLeads();
-    if (leads.length === 0) {
-        alert("No leads collected yet!");
         return;
     }
 
