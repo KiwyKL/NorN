@@ -388,23 +388,6 @@ const DashboardView: React.FC<Props> = ({ setViewState, language, setPersona, se
                     <img src="/images/nav-home.png" alt="Home" className="w-full h-auto" />
                 </div>
 
-                <div className="relative z-10 h-full flex flex-col items-center justify-center p-6 text-white">
-                    <Gift size={48} className="mb-3" />
-                    <p className="font-bold text-lg text-center">{t.wishlist}</p>
-                </div>
-            </div>
-
-            {/* STORE - NEW */}
-            <div
-                onClick={() => setViewState(ViewState.STORE)}
-                className="relative bg-gradient-to-br from-green-500 to-emerald-600 rounded-3xl shadow-2xl overflow-hidden cursor-pointer transition-all hover:scale-105 active:scale-95"
-                style={{ aspectRatio: '1' }}
-            >
-                <div className="absolute inset-0 bg-white/10 backdrop-blur-sm"></div>
-                <div className="relative z-10 h-full flex flex-col items-center justify-center p-6 text-white">
-                    <ShoppingBag size={48} className="mb-3" />
-                    <p className="font-bold text-lg text-center">{language === 'Spanish' ? 'Tienda' : 'Store'}</p>
-                </div>
             </div>
 
             {/* Giveaway */}
@@ -421,7 +404,6 @@ const DashboardView: React.FC<Props> = ({ setViewState, language, setPersona, se
                 <img src="/images/nav-calendar.png" alt="Calendar" className="w-full h-auto" />
             </div>
         </div>
-        </div >
     );
 };
 
