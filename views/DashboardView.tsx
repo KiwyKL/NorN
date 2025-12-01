@@ -319,6 +319,35 @@ const DashboardView: React.FC<Props> = ({ setViewState, language, setPersona, se
                     <img src="/images/nav-bar.png" alt="Nav" className="w-full h-full object-cover transform scale-x-105" />
                 </div>
 
+                {/* Nav Gift */}
+                <div
+                    onClick={() => setViewState(ViewState.WISHLIST)}
+                    className="absolute cursor-pointer transform transition active:scale-90"
+                    style={{
+                        left: '15.5%',
+                        top: '92.8%',
+                        width: '8.8%',
+                        zIndex: 11,
+                    }}
+                >
+                    <img src="/images/nav-gift.png" alt="Gift" className="w-full h-auto" />
+                </div>
+
+                {/* Nav Store - NEW */}
+                <div
+                    onClick={() => setViewState(ViewState.STORE)}
+                    className="absolute cursor-pointer transform transition active:scale-90 bg-green-500 rounded-full flex items-center justify-center"
+                    style={{
+                        left: '29%',
+                        top: '92.8%',
+                        width: '8.8%',
+                        height: '8.8%',
+                        zIndex: 11,
+                    }}
+                >
+                    <span className="text-white text-2xl">🛒</span>
+                </div>
+
                 {/* Nav Home */}
                 <div
                     onClick={() => setViewState(ViewState.SPLASH)}
@@ -333,47 +362,40 @@ const DashboardView: React.FC<Props> = ({ setViewState, language, setPersona, se
                     <img src="/images/nav-home.png" alt="Home" className="w-full h-auto" />
                 </div>
 
-                {/* Wishlist */}
-                <div
-                    onClick={() => setViewState(ViewState.WISHLIST)}
-                    className="relative bg-gradient-to-br from-yellow-500 to-orange-600 rounded-3xl shadow-2xl overflow-hidden cursor-pointer transition-all hover:scale-105 active:scale-95"
-                    style={{ aspectRatio: '1' }}
-                >
-                    <div className="absolute inset-0 bg-white/10 backdrop-blur-sm"></div>
-                    <div className="relative z-10 h-full flex flex-col items-center justify-center p-6 text-white">
-                        <Gift size={48} className="mb-3" />
-                        <p className="font-bold text-lg text-center">{t.wishlist}</p>
-                    </div>
-                </div>
-
-                {/* STORE - NEW */}
-                <div
-                    onClick={() => setViewState(ViewState.STORE)}
-                    className="relative bg-gradient-to-br from-green-500 to-emerald-600 rounded-3xl shadow-2xl overflow-hidden cursor-pointer transition-all hover:scale-105 active:scale-95"
-                    style={{ aspectRatio: '1' }}
-                >
-                    <div className="absolute inset-0 bg-white/10 backdrop-blur-sm"></div>
-                    <div className="relative z-10 h-full flex flex-col items-center justify-center p-6 text-white">
-                        <ShoppingBag size={48} className="mb-3" />
-                        <p className="font-bold text-lg text-center">{language === 'Spanish' ? 'Tienda' : 'Store'}</p>
-                    </div>
-                </div>
-
-                {/* Giveaway */}
-                <div
-                    onClick={() => setViewState(ViewState.ADVENT)}
-                    className="absolute cursor-pointer transform transition active:scale-90"
-                    style={{
-                        left: '76.8%',
-                        top: '93.3%',
-                        width: '13.1%',
-                        zIndex: 11,
-                    }}
-                >
-                    <img src="/images/nav-calendar.png" alt="Calendar" className="w-full h-auto" />
+                <div className="relative z-10 h-full flex flex-col items-center justify-center p-6 text-white">
+                    <Gift size={48} className="mb-3" />
+                    <p className="font-bold text-lg text-center">{t.wishlist}</p>
                 </div>
             </div>
+
+            {/* STORE - NEW */}
+            <div
+                onClick={() => setViewState(ViewState.STORE)}
+                className="relative bg-gradient-to-br from-green-500 to-emerald-600 rounded-3xl shadow-2xl overflow-hidden cursor-pointer transition-all hover:scale-105 active:scale-95"
+                style={{ aspectRatio: '1' }}
+            >
+                <div className="absolute inset-0 bg-white/10 backdrop-blur-sm"></div>
+                <div className="relative z-10 h-full flex flex-col items-center justify-center p-6 text-white">
+                    <ShoppingBag size={48} className="mb-3" />
+                    <p className="font-bold text-lg text-center">{language === 'Spanish' ? 'Tienda' : 'Store'}</p>
+                </div>
+            </div>
+
+            {/* Giveaway */}
+            <div
+                onClick={() => setViewState(ViewState.ADVENT)}
+                className="absolute cursor-pointer transform transition active:scale-90"
+                style={{
+                    left: '76.8%',
+                    top: '93.3%',
+                    width: '13.1%',
+                    zIndex: 11,
+                }}
+            >
+                <img src="/images/nav-calendar.png" alt="Calendar" className="w-full h-auto" />
+            </div>
         </div>
+        </div >
     );
 };
 
