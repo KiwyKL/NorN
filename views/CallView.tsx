@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { ArrowLeft, Mic, MicOff, PhoneOff, AlertCircle } from 'lucide-react';
 import { ViewState, CallContextData, Language } from '../types';
+import { billingService } from '../services/billingService';
 import { translations } from '../services/translations';
 import { getLiveClient, generatePersonaInstruction } from '../services/geminiService';
 import { decode, decodeAudioData, createPCM16Blob } from '../services/geminiUtils';
@@ -35,7 +36,23 @@ const CallView: React.FC<Props> = ({ setViewState, language, initialPersona, set
     // Refs for mutable state accessed in callbacks/processors
     const isMutedRef = useRef(isMuted);
     const mountedRef = useRef(true);
+    const [isRecording, setIsRecording] = useState(false);
     const isStartingRef = useRef(false);
+
+    // Check call balance on mount
+    useEffect(() => {
+        const availableCalls = billingService.getAvailableCalls();
+
+        // If no calls available and not in demo mode, redirect to store
+        // Note: viewState is not directly available in CallView props, assuming it's managed by parent
+        // and setViewState is used to navigate. This check would typically be in the parent component
+        // or viewState would be passed as a prop to CallView.
+        // For now, we'll assume the intent is to check when CallView is mounted/rendered.
+        if (availableCalls === 0) { // Removed viewState check as it's not a prop here
+            alert('¡Necesitas comprar llamadas para continuar!\n\nSerás redirigido a la tienda.');
+            setViewState(ViewState.STORE);
+        }
+    }, [setViewState]); // Dependency on setViewState to avoid lint warning
 
     const audioContextRef = useRef<AudioContext | null>(null);
     const inputContextRef = useRef<AudioContext | null>(null);
