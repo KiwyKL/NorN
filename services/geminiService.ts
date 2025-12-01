@@ -41,6 +41,19 @@ export const generateText = async (prompt: string, model?: string): Promise<stri
 
     const data = await response.json();
     return data.text;
+  } catch (error) {
+    console.error('Error generating text:', error);
+    throw error;
+  }
+};
+
+// --- 2. TRANSCRIBIR AUDIO ---
+export const transcribeAudioBlob = async (audioBlob: Blob): Promise<string> => {
+  try {
+    // Convert blob to base64
+    const base64Audio = await new Promise<string>((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onloadend = () => {
         if (typeof reader.result === 'string') {
           const base64 = reader.result.split(',')[1];
           resolve(base64);
@@ -73,45 +86,7 @@ export const generateText = async (prompt: string, model?: string): Promise<stri
   }
 };
 
-// --- 3. CREATE CHAT SESSION (For ChatView compatibility) ---
-export const createChatSession = (
-  name: string,
-  country: string,
-  age: string,
-  language: string = 'Spanish'
-) => {
-  const systemInstruction = `You are Santa Claus chatting with ${name}, a ${age}-year-old child from ${country}. Respond ALWAYS in ${language}. Be warm, friendly, and magical.`;
-  const history: any[] = [];
-
-  return {
-    sendMessage: async (userMessage: string) => {
-      let conversationContext = systemInstruction;
-
-      if (history.length > 0) {
-        const conversationHistory = history.map((msg: any) => {
-          if (msg.role === 'user') {
-            return `User: ${msg.text}`;
-          } else {
-            return `Assistant: ${msg.text}`;
-          }
-        }).join('\n');
-
-        conversationContext = `${systemInstruction}\n\n${conversationHistory}`;
-      }
-
-      const fullPrompt = `${conversationContext}\n\n User: ${userMessage}\ nAssistant:`;
-
-      const responseText = await generateText(fullPrompt);
-
-      history.push({ role: 'user', text: userMessage });
-      history.push({ role: 'model', text: responseText });
-
-      return { text: responseText };
-    }
-  };
-};
-
-// --- 4. CHATBOT CON PERSONA (Para CallView) ---
+// --- 3. CHATBOT CON PERSONA ---
 export const createPersonaChatSession = (
   context: CallContextData,
   language: string = 'Spanish'
@@ -147,7 +122,7 @@ export const createPersonaChatSession = (
   };
 };
 
-// --- 5. ANALIZAR CARTA (Visión) ---
+// --- 4. ANALIZAR CARTA (Visión) ---
 export const analyzeLetterImage = async (base64Image: string) => {
   try {
     const response = await fetch(API_ENDPOINTS.analyzeImage, {
@@ -171,7 +146,7 @@ export const analyzeLetterImage = async (base64Image: string) => {
   }
 };
 
-// --- 6. GENERAR IMAGEN ---
+// --- 5. GENERAR IMAGEN ---
 export const generateChristmasImage = async (textOnLetter: string): Promise<string> => {
   const prompt = `Create a cinematic square photo of Santa Claus holding a letter. The letter contains the following text: "${textOnLetter}". Use warm Christmas lighting. Santa should look friendly and jolly. Professional photo quality. The image should fill the entire square frame.`;
 
@@ -194,31 +169,7 @@ export const generateChristmasImage = async (textOnLetter: string): Promise<stri
   }
 };
 
-// --- 7. EDITAR IMAGEN (Combinar carta del usuario con Santa) ---
-export const editImageWithPrompt = async (base64Image: string, prompt: string): Promise<string> => {
-  try {
-    const response = await fetch(API_ENDPOINTS.analyzeImage, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        imageData: base64Image,
-        prompt: prompt
-      })
-    });
-
-    if (!response.ok) {
-      throw new Error('Failed to edit image');
-    }
-
-    const data = await response.json();
-    return data.text;
-  } catch (error) {
-    console.error('Error editing image:', error);
-    throw error;
-  }
-};
-
-// --- 8. INSTRUCCIONES DE PERSONA (SYNC VERSION) ---
+// --- 6. INSTRUCCIONES DE PERSONA (SYNC VERSION) ---
 function generatePersonaInstructionSync(context: CallContextData, language: string = 'Spanish'): string {
   const translations: Record<string, any> = {
     Spanish: {
@@ -314,14 +265,21 @@ ${context.details ? `- ${t.details}: ${context.details}` : ''}`;
     santa: t.santa,
     grinch: t.grinch,
     spicy_santa: t.spicy
-  };
+        imageData: base64Image,
+    prompt: prompt
+  })
+});
 
-  return `${t.baseInstruction}\n\n${childContext}\n\n${personalityInstructions[context.persona] || personalityInstructions.santa}`;
+if (!response.ok) {
+  throw new Error('Failed to edit image');
 }
 
-// --- 9. INSTRUCCIONES DE PERSONA (ASYNC - PARA COMPATIBILIDAD) ---
-export const generatePersonaInstruction = async (context: CallContextData, language: string = 'Spanish'): Promise<string> => {
-  return generatePersonaInstructionSync(context, language);
+const data = await response.json();
+return data.text;
+  } catch (error) {
+  console.error('Error editing image:', error);
+  throw error;
+}
 };
 
 // Export Modality for use in CallView
