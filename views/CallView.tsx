@@ -41,18 +41,37 @@ const CallView: React.FC<Props> = ({ setViewState, language, initialPersona, set
 
     // Check call balance on mount
     useEffect(() => {
+        const isDemoCall = localStorage.getItem('isDemoCall') === 'true';
         const availableCalls = billingService.getAvailableCalls();
 
+        // If demo call, skip balance check
+        if (isDemoCall) {
+            console.log('Demo call mode - skipping balance check');
+            return;
+        }
+
         // If no calls available and not in demo mode, redirect to store
-        // Note: viewState is not directly available in CallView props, assuming it's managed by parent
-        // and setViewState is used to navigate. This check would typically be in the parent component
-        // or viewState would be passed as a prop to CallView.
-        // For now, we'll assume the intent is to check when CallView is mounted/rendered.
-        if (availableCalls === 0) { // Removed viewState check as it's not a prop here
+        if (availableCalls === 0) {
             alert('¡Necesitas comprar llamadas para continuar!\n\nSerás redirigido a la tienda.');
             setViewState(ViewState.STORE);
         }
-    }, [setViewState]); // Dependency on setViewState to avoid lint warning
+    }, [setViewState]);
+
+    // Auto-hangup for demo calls after 8 seconds
+    useEffect(() => {
+        const isDemoCall = localStorage.getItem('isDemoCall') === 'true';
+
+        if (isDemoCall && isConnected) {
+            console.log('Demo call - will auto-hangup in 8 seconds');
+            const timeout = setTimeout(() => {
+                console.log('Demo call timeout - hanging up');
+                localStorage.removeItem('isDemoCall'); // Clean up flag
+                endCall();
+            }, 8000); // 8 seconds
+
+            return () => clearTimeout(timeout);
+        }
+    }, [isConnected]); // Dependency on isConnected
 
     const audioContextRef = useRef<AudioContext | null>(null);
     const inputContextRef = useRef<AudioContext | null>(null);
@@ -247,7 +266,11 @@ const CallView: React.FC<Props> = ({ setViewState, language, initialPersona, set
                         // KICKSTART: Send initial greeting so Santa speaks first
                         sessionPromise.then(session => {
                             try {
-                                session.sendRealtimeInput([{ text: `Hello! I am ${formData.recipientName}.` }]);
+                                const isDemoCall = localStorage.getItem('isDemoCall') === 'true';
+                                const greeting = isDemoCall
+                                    ? `Hello! I am ${formData.recipientName}. This is a demo call.`
+                                    : `Hello! I am ${formData.recipientName}.`;
+                                session.sendRealtimeInput([{ text: greeting }]);
                             } catch (e) {
                                 console.log("Could not send initial greeting", e);
                             }
