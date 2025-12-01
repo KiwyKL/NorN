@@ -10,6 +10,7 @@ import CallView from './views/CallView';
 import AdventView from './views/AdventView';
 import WishlistView from './views/WishlistView';
 import GiveawayView from './views/GiveawayView';
+import StoreView from './views/StoreView';
 
 const App: React.FC = () => {
   const [viewState, setViewState] = useState<ViewState>(ViewState.SPLASH);
@@ -52,6 +53,8 @@ const App: React.FC = () => {
         return <WishlistView setViewState={setViewState} language={language} tickets={tickets} />;
       case ViewState.GIVEAWAY_FORM:
         return <GiveawayView setViewState={setViewState} language={language} mode={giveawayMode} />;
+      case ViewState.STORE:
+        return <StoreView setViewState={setViewState} language={language} />;
       default:
         return <DashboardView setViewState={setViewState} language={language} setPersona={setSelectedPersona} setGiveawayMode={setGiveawayMode} />;
     }

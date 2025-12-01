@@ -7,7 +7,8 @@ export enum ViewState {
   LIVE_CALL = 'LIVE_CALL',
   ADVENT = 'ADVENT',
   WISHLIST = 'WISHLIST',
-  GIVEAWAY_FORM = 'GIVEAWAY_FORM'
+  GIVEAWAY_FORM = 'GIVEAWAY_FORM',
+  STORE = 'STORE'
 }
 
 export enum Language {
