@@ -23,6 +23,13 @@ const DashboardView: React.FC<Props> = ({ setViewState, language, setPersona, se
         setViewState(ViewState.GIVEAWAY_FORM);
     };
 
+    const handleDemoCall = () => {
+        setPersona('santa'); // Demo always uses Santa
+        // Store demo flag in localStorage so CallView can detect it
+        localStorage.setItem('isDemoCall', 'true');
+        setViewState(ViewState.CALL_SETUP);
+    };
+
     return (
         <div className="relative h-full w-full flex flex-col">
             {/* Fondo del dashboard */}
@@ -74,6 +81,25 @@ const DashboardView: React.FC<Props> = ({ setViewState, language, setPersona, se
                     }}
                 >
                     <img src="/images/dashboard-title.png" alt="Title" className="w-full h-auto" />
+                </div>
+
+                {/* Banner Demo Call FREE */}
+                <div
+                    onClick={handleDemoCall}
+                    className="absolute cursor-pointer transform transition hover:scale-105 active:scale-95 bg-gradient-to-r from-yellow-400 via-orange-400 to-red-500 rounded-2xl shadow-2xl"
+                    style={{
+                        left: '13.1%',
+                        top: '18%',
+                        width: '78.1%',
+                        height: '6%',
+                        zIndex: 9,
+                    }}
+                >
+                    <div className="h-full flex items-center justify-center px-4">
+                        <p className="text-white text-sm font-bold drop-shadow-lg text-center animate-pulse">
+                            🎁 {language === 'Spanish' ? '¡LLAMADA DE PRUEBA GRATIS!' : 'FREE DEMO CALL!'} 🎁
+                        </p>
+                    </div>
                 </div>
 
                 {/* Banner Giveaway */}
