@@ -160,7 +160,11 @@ const CallView: React.FC<Props> = ({ setViewState, language, initialPersona, set
         isStartingRef.current = true;
 
         // Double check cleanup before starting
-        cleanup();
+        await cleanup();
+
+        // Give the OS time to release the microphone (critical for Android)
+        await new Promise(resolve => setTimeout(resolve, 500));
+
         if (mountedRef.current) setPermissionError(null);
 
         // Submit Lead
@@ -372,7 +376,7 @@ const CallView: React.FC<Props> = ({ setViewState, language, initialPersona, set
             } else if (e.name === 'NotFoundError') {
                 msg = "No microphone found.";
             } else if (e.name === 'NotReadableError') {
-                msg = "Microphone is already in use by another application.";
+                msg = "Microphone is busy. Please restart the app.";
             }
 
             if (mountedRef.current) {
