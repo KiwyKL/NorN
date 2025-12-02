@@ -181,7 +181,7 @@ const CallView: React.FC<Props> = ({ setViewState, language, initialPersona, set
 
             setIsConnected(true);
 
-            const ai = getLiveClient();
+            const ai = await getLiveClient();
 
             // Map Language enum to language name for generatePersonaInstruction
             let langName = 'Spanish'; // Default
