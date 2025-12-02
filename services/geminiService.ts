@@ -299,8 +299,6 @@ export const editImageWithPrompt = async (base64Image: string, prompt: string): 
   }
 };
 
-// Export Modality for use in CallView
-export { Modality };
 // --- 9. CREATE CHAT SESSION (For ChatView compatibility) ---
 export const createChatSession = (
   name: string,
@@ -339,40 +337,5 @@ export const createChatSession = (
   };
 };
 
-// --- 9. CREATE CHAT SESSION (For ChatView compatibility) ---
-export const createChatSession = (
-  name: string,
-  country: string,
-  age: string,
-  language: string = 'Spanish'
-) => {
-  const systemInstruction = `You are Santa Claus chatting with ${name}, a ${age}-year-old child from ${country}. Respond ALWAYS in ${language}. Be warm, friendly, and magical.`;
-  const history:any[] = [];
-
-  return {
-    sendMessage: async (userMessage: string) => {
-      let conversationContext = systemInstruction;
-
-      if (history.length > 0) {
-        const conversationHistory = history.map((msg: any) => {
-          if (msg.role === 'user') {
-            return `User: ${msg.text}`;
-          } else {
-            return `Assistant: ${msg.text}`;
-          }
-        }).join('\n');
-
-        conversationContext = `\n\n${conversationHistory}`;
-      }
-
-      const fullPrompt = `\n\n User: ${userMessage}\nAssistant:`;
-
-      const responseText = await generateText(fullPrompt);
-
-      history.push({ role: 'user', text: userMessage });
-      history.push({ role: 'model', text: responseText });
-
-      return { text: responseText };
-    }
-  };
-};
+// Export Modality for use in CallView
+export { Modality };
