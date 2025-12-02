@@ -151,6 +151,40 @@ const CallView: React.FC<Props> = ({ setViewState, language, initialPersona, set
         sessionPromiseRef.current = null;
     };
 
+    // Request microphone permission (especially important for Android)
+    const requestMicrophonePermission = async (): Promise<MediaStream | null> => {
+        try {
+            console.log('Requesting microphone permission...');
+
+            // Request microphone access
+            // On Android, this will trigger the system permission dialog if not already granted
+            const stream = await navigator.mediaDevices.getUserMedia({ audio: true, video: false });
+
+            console.log('Microphone permission granted');
+            return stream;
+        } catch (error: any) {
+            console.error('Microphone permission error:', error);
+
+            let errorMessage = 'Unable to access microphone.';
+
+            if (error.name === 'NotAllowedError' || error.name === 'PermissionDeniedError') {
+                errorMessage = 'Microphone permission denied. Please allow microphone access in your device settings.';
+            } else if (error.name === 'NotFoundError') {
+                errorMessage = 'No microphone found on this device.';
+            } else if (error.name === 'NotReadableError') {
+                errorMessage = 'Microphone is already in use by another application.';
+            }
+
+            if (mountedRef.current) {
+                setPermissionError(errorMessage);
+            }
+
+            return null;
+        }
+    };
+
+
+
     const startCall = async () => {
         if (!mountedRef.current || isStartingRef.current) return;
         isStartingRef.current = true;
@@ -171,8 +205,14 @@ const CallView: React.FC<Props> = ({ setViewState, language, initialPersona, set
         }
 
         try {
-            // Request permissions specifically (Audio Only)
-            const stream = await navigator.mediaDevices.getUserMedia({ audio: true, video: false });
+            // Request microphone permission
+            const stream = await requestMicrophonePermission();
+
+            if (!stream) {
+                // Permission was denied or error occurred (already handled in requestMicrophonePermission)
+                cleanup();
+                return;
+            }
 
             if (!mountedRef.current) {
                 stream.getTracks().forEach(t => t.stop());
