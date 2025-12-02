@@ -112,7 +112,7 @@ const CallView: React.FC<Props> = ({ setViewState, language, initialPersona, set
         return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
     };
 
-    const cleanup = () => {
+    const cleanup = async () => {
         console.log('Cleaning up call resources...');
 
         // 1. Stop MediaStream Tracks (Mic)
@@ -131,15 +131,19 @@ const CallView: React.FC<Props> = ({ setViewState, language, initialPersona, set
             sourceRef.current = null;
         }
 
-        // 3. Close Audio Contexts
+        // 3. Close Audio Contexts (with proper await)
+        const closePromises = [];
         if (audioContextRef.current && audioContextRef.current.state !== 'closed') {
-            audioContextRef.current.close();
+            closePromises.push(audioContextRef.current.close());
             audioContextRef.current = null;
         }
         if (inputContextRef.current && inputContextRef.current.state !== 'closed') {
-            inputContextRef.current.close();
+            closePromises.push(inputContextRef.current.close());
             inputContextRef.current = null;
         }
+
+        // Wait for all contexts to close
+        await Promise.all(closePromises);
 
         // 4. Reset state if mounted
         if (mountedRef.current) {
@@ -150,40 +154,6 @@ const CallView: React.FC<Props> = ({ setViewState, language, initialPersona, set
         // 5. Close Session (Async best effort)
         sessionPromiseRef.current = null;
     };
-
-    // Request microphone permission (especially important for Android)
-    const requestMicrophonePermission = async (): Promise<MediaStream | null> => {
-        try {
-            console.log('Requesting microphone permission...');
-
-            // Request microphone access
-            // On Android, this will trigger the system permission dialog if not already granted
-            const stream = await navigator.mediaDevices.getUserMedia({ audio: true, video: false });
-
-            console.log('Microphone permission granted');
-            return stream;
-        } catch (error: any) {
-            console.error('Microphone permission error:', error);
-
-            let errorMessage = 'Unable to access microphone.';
-
-            if (error.name === 'NotAllowedError' || error.name === 'PermissionDeniedError') {
-                errorMessage = 'Microphone permission denied. Please allow microphone access in your device settings.';
-            } else if (error.name === 'NotFoundError') {
-                errorMessage = 'No microphone found on this device.';
-            } else if (error.name === 'NotReadableError') {
-                errorMessage = 'Microphone is already in use by another application.';
-            }
-
-            if (mountedRef.current) {
-                setPermissionError(errorMessage);
-            }
-
-            return null;
-        }
-    };
-
-
 
     const startCall = async () => {
         if (!mountedRef.current || isStartingRef.current) return;
@@ -205,22 +175,6 @@ const CallView: React.FC<Props> = ({ setViewState, language, initialPersona, set
         }
 
         try {
-            // Request microphone permission
-            const stream = await requestMicrophonePermission();
-
-            if (!stream) {
-                // Permission was denied or error occurred (already handled in requestMicrophonePermission)
-                cleanup();
-                return;
-            }
-
-            if (!mountedRef.current) {
-                stream.getTracks().forEach(t => t.stop());
-                return;
-            }
-
-            setIsConnected(true);
-
             const ai = await getLiveClient();
 
             // Map Language enum to language name for generatePersonaInstruction
@@ -253,12 +207,24 @@ const CallView: React.FC<Props> = ({ setViewState, language, initialPersona, set
             audioContextRef.current = audioCtx;
             nextStartTimeRef.current = 0;
 
-            // Setup Input Stream (Audio)
-            streamRef.current = stream;
-
             // Setup Input Processing - IMPORTANT: Set sampleRate to 16000 like AI Studio
             const inputCtx = new AudioContext({ sampleRate: 16000 });
             inputContextRef.current = inputCtx;
+
+            // NOW request microphone - right before we need it
+            console.log('Requesting microphone access...');
+            const stream = await navigator.mediaDevices.getUserMedia({ audio: true, video: false });
+            console.log('Microphone access granted');
+
+            if (!mountedRef.current) {
+                stream.getTracks().forEach(t => t.stop());
+                return;
+            }
+
+            setIsConnected(true);
+
+            // Setup Input Stream (Audio)
+            streamRef.current = stream;
             const source = inputCtx.createMediaStreamSource(stream);
             sourceRef.current = source;
 
@@ -316,17 +282,19 @@ const CallView: React.FC<Props> = ({ setViewState, language, initialPersona, set
                         }
 
                         // KICKSTART: Send initial greeting so Santa speaks first
+                        /* 
                         sessionPromise.then(session => {
                             try {
                                 const isDemoCall = localStorage.getItem('isDemoCall') === 'true';
                                 const greeting = isDemoCall
                                     ? `Hello! I am ${formData.recipientName}. This is a demo call.`
                                     : `Hello! I am ${formData.recipientName}.`;
-                                session.sendRealtimeInput([{ text: greeting }]);
+                                // session.sendRealtimeInput([{ text: greeting }]);
                             } catch (e) {
                                 console.log("Could not send initial greeting", e);
                             }
                         });
+                        */
                     },
                     onmessage: async (msg: LiveServerMessage) => {
                         if (!mountedRef.current) return;
@@ -403,6 +371,8 @@ const CallView: React.FC<Props> = ({ setViewState, language, initialPersona, set
                 msg = "Permission denied. Please allow microphone access.";
             } else if (e.name === 'NotFoundError') {
                 msg = "No microphone found.";
+            } else if (e.name === 'NotReadableError') {
+                msg = "Microphone is already in use by another application.";
             }
 
             if (mountedRef.current) {

@@ -3,7 +3,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import { ArrowLeft, Wand2, Image as ImageIcon, Play, Send, Upload, Smartphone, CheckCircle, Gift, Ticket, Mail, Download } from 'lucide-react';
 import { ViewState, Language } from '../types';
 import { translations } from '../services/translations';
-import { generateChristmasImage, analyzeLetterImage, generateSpeech, editImageWithPrompt } from '../services/geminiService';
+import { generateChristmasImage, analyzeLetterImage, editImageWithPrompt } from '../services/geminiService';
 import { blobToBase64 } from '../services/geminiUtils';
 import { countries } from '../constants/countries';
 import { submitLead } from '../services/leadService';
