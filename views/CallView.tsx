@@ -192,7 +192,19 @@ const CallView: React.FC<Props> = ({ setViewState, language, initialPersona, set
             else if (language === 'Português') langName = 'Portuguese';
             else if (language === 'Español') langName = 'Spanish';
 
-            const systemInstruction = await generatePersonaInstruction(formData, langName);
+            // Check if this is a demo call
+            const isDemoCall = localStorage.getItem('isDemoCall') === 'true';
+
+            let systemInstruction;
+            if (isDemoCall) {
+                // Ultra-brief instruction for demo calls - make it quick and promotional
+                systemInstruction = langName === 'Spanish'
+                    ? `Eres Santa Claus. Saluda brevemente a ${formData.recipientName}. Luego di: "Recuerda que esta es solo una llamada de prueba. ¡Podríamos conversar más por la línea oficial del Polo Norte! Ho ho ho!" y despídete. Máximo 2-3 frases en total. Sé alegre pero breve.`
+                    : `You are Santa Claus. Greet ${formData.recipientName} briefly. Then say: "Remember this is just a trial call. We could talk more on the official North Pole line! Ho ho ho!" and say goodbye. Maximum 2-3 sentences total. Be cheerful but brief.`;
+            } else {
+                // Regular full call instruction
+                systemInstruction = await generatePersonaInstruction(formData, langName);
+            }
 
             if (!mountedRef.current) return;
 
