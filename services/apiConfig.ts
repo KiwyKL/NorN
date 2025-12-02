@@ -1,6 +1,11 @@
 // API Configuration
 // Use Vercel proxy in production, local testing otherwise
-export const API_BASE_URL = import.meta.env.PROD
+
+// Detect if we're in a Capacitor/mobile build
+const isCapacitor = !!(window as any).Capacitor;
+const isProduction = import.meta.env.PROD || isCapacitor;
+
+export const API_BASE_URL = isProduction
     ? 'https://nor-n.vercel.app'
     : 'http://localhost:5173'; // Vite default dev port
 

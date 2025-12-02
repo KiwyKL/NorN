@@ -217,7 +217,32 @@ const CallView: React.FC<Props> = ({ setViewState, language, initialPersona, set
 
             // NOW request microphone - right before we need it
             console.log('Requesting microphone access...');
-            const stream = await navigator.mediaDevices.getUserMedia({ audio: true, video: false });
+
+            let stream: MediaStream | null = null;
+            let attempts = 0;
+            const maxAttempts = 3;
+
+            while (!stream && attempts < maxAttempts) {
+                try {
+                    stream = await navigator.mediaDevices.getUserMedia({ audio: true, video: false });
+                } catch (err: any) {
+                    console.warn(`Attempt ${attempts + 1} failed:`, err.name);
+                    // NotReadableError = Mic busy (Android)
+                    // AbortError = Generic hardware error sometimes
+                    if (err.name === 'NotReadableError' || err.name === 'AbortError') {
+                        attempts++;
+                        if (attempts < maxAttempts) {
+                            console.log('Microphone busy, retrying in 1.5s...');
+                            await new Promise(resolve => setTimeout(resolve, 1500));
+                            continue;
+                        }
+                    }
+                    throw err; // Re-throw if not retryable or max attempts reached
+                }
+            }
+
+            if (!stream) throw new Error("Failed to acquire microphone");
+
             console.log('Microphone access granted');
 
             if (!mountedRef.current) {
@@ -376,7 +401,8 @@ const CallView: React.FC<Props> = ({ setViewState, language, initialPersona, set
             } else if (e.name === 'NotFoundError') {
                 msg = "No microphone found.";
             } else if (e.name === 'NotReadableError') {
-                msg = "Microphone is busy. Please restart the app.";
+            } else if (e.name === 'NotReadableError') {
+                msg = "Microphone is still busy after retries. Please restart the app.";
             }
 
             if (mountedRef.current) {
