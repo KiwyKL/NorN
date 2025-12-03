@@ -58,16 +58,21 @@ const CallView: React.FC<Props> = ({ setViewState, language, initialPersona, set
         }
     }, [setViewState]);
 
-    // Auto-hangup for demo calls after 8 seconds
+    // Auto-hangup for demo calls after 20 seconds, regular calls after 5 minutes
     useEffect(() => {
         const isDemoCall = localStorage.getItem('isDemoCall') === 'true';
 
-        if (isDemoCall && isConnected) {
-            console.log('Demo call - will auto-hangup in 20 seconds');
+        if (isConnected) {
+            const duration = isDemoCall ? 20000 : 300000; // 20s for demo, 5min for regular
+            const message = isDemoCall
+                ? 'Demo call - will auto-hangup in 20 seconds'
+                : 'Regular call - will auto-hangup in 5 minutes';
+
+            console.log(message);
             const timeout = setTimeout(() => {
-                console.log('Demo call timeout - hanging up');
+                console.log('Call timeout - hanging up');
                 endCall(); // endCall will handle cleanup and redirect
-            }, 20000); // 20 seconds
+            }, duration);
 
             return () => clearTimeout(timeout);
         }
