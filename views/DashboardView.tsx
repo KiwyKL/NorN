@@ -356,7 +356,7 @@ const DashboardView: React.FC<Props> = ({ setViewState, language, setPersona, se
                         zIndex: 11,
                     }}
                 >
-                    <img src="/images/nav-gift.png" alt="Store" className="w-full h-auto" />
+                    <img src="/images/nav-cart.png" alt="Store" className="w-full h-auto" />
                 </div>
 
 
