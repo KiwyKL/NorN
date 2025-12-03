@@ -62,12 +62,12 @@ const CallView: React.FC<Props> = ({ setViewState, language, initialPersona, set
         const isDemoCall = localStorage.getItem('isDemoCall') === 'true';
 
         if (isDemoCall && isConnected) {
-            console.log('Demo call - will auto-hangup in 8 seconds');
+            console.log('Demo call - will auto-hangup in 20 seconds');
             const timeout = setTimeout(() => {
                 console.log('Demo call timeout - hanging up');
                 localStorage.removeItem('isDemoCall'); // Clean up flag
                 endCall();
-            }, 8000); // 8 seconds
+            }, 20000); // 20 seconds
 
             return () => clearTimeout(timeout);
         }
@@ -428,9 +428,20 @@ const CallView: React.FC<Props> = ({ setViewState, language, initialPersona, set
 
     const endCall = () => {
         cleanup();
-        addTicket(); // Add a ticket when the call ends
-        setGiveawayMode('participating');
-        setViewState(ViewState.GIVEAWAY_FORM);
+
+        // Check if this was a demo call
+        const isDemoCall = localStorage.getItem('isDemoCall') === 'true';
+
+        if (isDemoCall) {
+            // Demo call: clean up flag and redirect to store (no ticket, no giveaway)
+            localStorage.removeItem('isDemoCall');
+            setViewState(ViewState.STORE);
+        } else {
+            // Regular call: add ticket and redirect to giveaway
+            addTicket();
+            setGiveawayMode('participating');
+            setViewState(ViewState.GIVEAWAY_FORM);
+        }
     };
 
     if (step === 'setup') {
@@ -512,51 +523,56 @@ const CallView: React.FC<Props> = ({ setViewState, language, initialPersona, set
                                 />
                             </div>
 
-                            {/* Age & Behavior */}
-                            <div className="grid grid-cols-2 gap-2">
-                                <div>
-                                    <label className="block text-white font-bold text-xs mb-1">{t.age}</label>
-                                    <input
-                                        className="w-full bg-white/80 border border-white/30 rounded-xl px-3 py-2.5 text-slate-800 placeholder-slate-500 focus:ring-2 focus:ring-blue-400 focus:outline-none shadow-inner text-sm"
-                                        value={formData.age}
-                                        onChange={e => setFormData({ ...formData, age: e.target.value })}
-                                    />
-                                </div>
-                                <div>
-                                    <label className="block text-white font-bold text-xs mb-1">{t.behavior}</label>
-                                    <select
-                                        className="w-full bg-white/80 border border-white/30 rounded-xl px-2 py-2.5 text-slate-800 focus:ring-2 focus:ring-blue-400 focus:outline-none shadow-inner text-sm appearance-none"
-                                        value={formData.behavior}
-                                        onChange={e => setFormData({ ...formData, behavior: e.target.value as any })}
-                                    >
-                                        <option>Muy bien</option>
-                                        <option>Bien</option>
-                                        <option>Regular</option>
-                                        <option>Travieso</option>
-                                    </select>
-                                </div>
-                            </div>
+                            {/* Only show detailed fields for non-demo calls */}
+                            {!localStorage.getItem('isDemoCall') && (
+                                <>
+                                    {/* Age & Behavior */}
+                                    <div className="grid grid-cols-2 gap-2">
+                                        <div>
+                                            <label className="block text-white font-bold text-xs mb-1">{t.age}</label>
+                                            <input
+                                                className="w-full bg-white/80 border border-white/30 rounded-xl px-3 py-2.5 text-slate-800 placeholder-slate-500 focus:ring-2 focus:ring-blue-400 focus:outline-none shadow-inner text-sm"
+                                                value={formData.age}
+                                                onChange={e => setFormData({ ...formData, age: e.target.value })}
+                                            />
+                                        </div>
+                                        <div>
+                                            <label className="block text-white font-bold text-xs mb-1">{t.behavior}</label>
+                                            <select
+                                                className="w-full bg-white/80 border border-white/30 rounded-xl px-2 py-2.5 text-slate-800 focus:ring-2 focus:ring-blue-400 focus:outline-none shadow-inner text-sm appearance-none"
+                                                value={formData.behavior}
+                                                onChange={e => setFormData({ ...formData, behavior: e.target.value as any })}
+                                            >
+                                                <option>Muy bien</option>
+                                                <option>Bien</option>
+                                                <option>Regular</option>
+                                                <option>Travieso</option>
+                                            </select>
+                                        </div>
+                                    </div>
 
-                            {/* Gifts */}
-                            <div>
-                                <label className="block text-white font-bold text-xs mb-1">{t.gifts}</label>
-                                <input
-                                    className="w-full bg-white/80 border border-white/30 rounded-xl px-3 py-2.5 text-slate-800 placeholder-slate-500 focus:ring-2 focus:ring-blue-400 focus:outline-none shadow-inner text-sm"
-                                    value={formData.gifts}
-                                    onChange={e => setFormData({ ...formData, gifts: e.target.value })}
-                                />
-                            </div>
+                                    {/* Gifts */}
+                                    <div>
+                                        <label className="block text-white font-bold text-xs mb-1">{t.gifts}</label>
+                                        <input
+                                            className="w-full bg-white/80 border border-white/30 rounded-xl px-3 py-2.5 text-slate-800 placeholder-slate-500 focus:ring-2 focus:ring-blue-400 focus:outline-none shadow-inner text-sm"
+                                            value={formData.gifts}
+                                            onChange={e => setFormData({ ...formData, gifts: e.target.value })}
+                                        />
+                                    </div>
 
-                            {/* Notes */}
-                            <div>
-                                <label className="block text-white font-bold text-xs mb-1">{t.notes}</label>
-                                <textarea
-                                    className="w-full bg-white/80 border border-white/30 rounded-xl px-3 py-2.5 text-slate-800 placeholder-slate-500 focus:ring-2 focus:ring-blue-400 focus:outline-none shadow-inner resize-none h-16 text-sm"
-                                    value={formData.details}
-                                    placeholder={t.notesPlaceholder}
-                                    onChange={e => setFormData({ ...formData, details: e.target.value })}
-                                />
-                            </div>
+                                    {/* Notes */}
+                                    <div>
+                                        <label className="block text-white font-bold text-xs mb-1">{t.notes}</label>
+                                        <textarea
+                                            className="w-full bg-white/80 border border-white/30 rounded-xl px-3 py-2.5 text-slate-800 placeholder-slate-500 focus:ring-2 focus:ring-blue-400 focus:outline-none shadow-inner resize-none h-16 text-sm"
+                                            value={formData.details}
+                                            placeholder={t.notesPlaceholder}
+                                            onChange={e => setFormData({ ...formData, details: e.target.value })}
+                                        />
+                                    </div>
+                                </>
+                            )}
 
                             {/* Start Call Button */}
                             <button

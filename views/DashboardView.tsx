@@ -91,7 +91,7 @@ const DashboardView: React.FC<Props> = ({ setViewState, language, setPersona, se
                         left: '13.1%',
                         top: '18%',
                         width: '78.1%',
-                        height: '6%',
+                        height: '4.5%',
                         zIndex: 20,
                     }}
                 >
