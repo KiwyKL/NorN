@@ -92,7 +92,7 @@ const DashboardView: React.FC<Props> = ({ setViewState, language, setPersona, se
                         top: '18%',
                         width: '78.1%',
                         height: '6%',
-                        zIndex: 9,
+                        zIndex: 20,
                     }}
                 >
                     <div className="h-full flex items-center justify-center px-4">
