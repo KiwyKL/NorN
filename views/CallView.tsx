@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { ArrowLeft, Mic, MicOff, PhoneOff, AlertCircle } from 'lucide-react';
 import { ViewState, CallContextData, Language } from '../types';
 import { billingService } from '../services/billingService';
+import { useCall } from '../constants/products';
 import { translations } from '../services/translations';
 import { getLiveClient, generatePersonaInstruction } from '../services/geminiService';
 import { decode, decodeAudioData, createPCM16Blob } from '../services/geminiUtils';
@@ -165,6 +166,20 @@ const CallView: React.FC<Props> = ({ setViewState, language, initialPersona, set
         await new Promise(resolve => setTimeout(resolve, 500));
 
         if (mountedRef.current) setPermissionError(null);
+
+        // Consume a call for non-demo calls
+        const isDemoCall = localStorage.getItem('isDemoCall') === 'true';
+        if (!isDemoCall) {
+            const callUsed = useCall();
+            if (!callUsed) {
+                // This shouldn't happen because we check on mount, but just in case
+                alert('¡No tienes llamadas disponibles!\\n\\nSerás redirigido a la tienda.');
+                setViewState(ViewState.STORE);
+                isStartingRef.current = false;
+                return;
+            }
+            console.log('✅ Call consumed - ' + billingService.getAvailableCalls() + ' remaining');
+        }
 
         // Submit Lead
         if (formData.email) {
