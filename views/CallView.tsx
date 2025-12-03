@@ -65,8 +65,7 @@ const CallView: React.FC<Props> = ({ setViewState, language, initialPersona, set
             console.log('Demo call - will auto-hangup in 20 seconds');
             const timeout = setTimeout(() => {
                 console.log('Demo call timeout - hanging up');
-                localStorage.removeItem('isDemoCall'); // Clean up flag
-                endCall();
+                endCall(); // endCall will handle cleanup and redirect
             }, 20000); // 20 seconds
 
             return () => clearTimeout(timeout);

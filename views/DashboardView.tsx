@@ -91,7 +91,7 @@ const DashboardView: React.FC<Props> = ({ setViewState, language, setPersona, se
                         left: '13.1%',
                         top: '18%',
                         width: '78.1%',
-                        height: '4.5%',
+                        height: '3.5%',
                         zIndex: 20,
                     }}
                 >
@@ -345,9 +345,9 @@ const DashboardView: React.FC<Props> = ({ setViewState, language, setPersona, se
                     <img src="/images/nav-bar.png" alt="Nav" className="w-full h-full object-cover transform scale-x-105" />
                 </div>
 
-                {/* Nav Gift */}
+                {/* Nav Store (previously Wishlist) */}
                 <div
-                    onClick={() => setViewState(ViewState.WISHLIST)}
+                    onClick={() => setViewState(ViewState.STORE)}
                     className="absolute cursor-pointer transform transition active:scale-90"
                     style={{
                         left: '15.5%',
@@ -356,23 +356,10 @@ const DashboardView: React.FC<Props> = ({ setViewState, language, setPersona, se
                         zIndex: 11,
                     }}
                 >
-                    <img src="/images/nav-gift.png" alt="Gift" className="w-full h-auto" />
+                    <img src="/images/nav-gift.png" alt="Store" className="w-full h-auto" />
                 </div>
 
-                {/* Nav Store - NEW */}
-                <div
-                    onClick={() => setViewState(ViewState.STORE)}
-                    className="absolute cursor-pointer transform transition active:scale-90 bg-green-500 rounded-full flex items-center justify-center"
-                    style={{
-                        left: '29%',
-                        top: '92.8%',
-                        width: '8.8%',
-                        height: '8.8%',
-                        zIndex: 11,
-                    }}
-                >
-                    <span className="text-white text-2xl">🛒</span>
-                </div>
+
 
                 {/* Nav Home */}
                 <div
