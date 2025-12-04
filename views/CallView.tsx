@@ -215,9 +215,26 @@ const CallView: React.FC<Props> = ({ setViewState, language, initialPersona, set
             let systemInstruction;
             if (isDemoCall) {
                 // Ultra-brief instruction for demo calls - make it quick and promotional
-                systemInstruction = langName === 'Spanish'
-                    ? `Eres Santa Claus. Saluda brevemente a ${formData.recipientName}. Luego di: "Recuerda que esta es solo una llamada de prueba. ¡Podríamos conversar más por la línea oficial del Polo Norte! Ho ho ho!" y despídete. Máximo 2-3 frases en total. Sé alegre pero breve.`
-                    : `You are Santa Claus. Greet ${formData.recipientName} briefly. Then say: "Remember this is just a trial call. We could talk more on the official North Pole line! Ho ho ho!" and say goodbye. Maximum 2-3 sentences total. Be cheerful but brief.`;
+                switch (langName) {
+                    case 'Spanish':
+                        systemInstruction = `Eres Santa Claus. Saluda brevemente a ${formData.recipientName}. Luego di: "Recuerda que esta es solo una llamada de prueba. ¡Podríamos conversar más por la línea oficial del Polo Norte! Ho ho ho!" y despídete. Máximo 2-3 frases en total. Sé alegre pero breve.`;
+                        break;
+                    case 'French':
+                        systemInstruction = `Tu es le Père Noël. Salue brièvement ${formData.recipientName}. Puis dis: "N'oublie pas que ceci n'est qu'un appel d'essai. Nous pourrions parler davantage sur la ligne officielle du Pôle Nord! Ho ho ho!" et dis au revoir. Maximum 2-3 phrases au total. Sois joyeux mais bref.`;
+                        break;
+                    case 'German':
+                        systemInstruction = `Du bist der Weihnachtsmann. Begrüße ${formData.recipientName} kurz. Dann sage: "Denk daran, dies ist nur ein Probeanruf. Wir könnten mehr über die offizielle Nordpol-Leitung sprechen! Ho ho ho!" und verabschiede dich. Maximal 2-3 Sätze insgesamt. Sei fröhlich aber kurz.`;
+                        break;
+                    case 'Italian':
+                        systemInstruction = `Sei Babbo Natale. Saluta brevemente ${formData.recipientName}. Poi di': "Ricorda che questa è solo una chiamata di prova. Potremmo parlare di più sulla linea ufficiale del Polo Nord! Ho ho ho!" e saluta. Massimo 2-3 frasi in totale. Sii allegro ma breve.`;
+                        break;
+                    case 'Portuguese':
+                        systemInstruction = `Você é o Papai Noel. Cumprimente brevemente ${formData.recipientName}. Depois diga: "Lembre-se de que esta é apenas uma chamada de teste. Poderíamos conversar mais na linha oficial do Polo Norte! Ho ho ho!" e despeça-se. Máximo de 2-3 frases no total. Seja alegre mas breve.`;
+                        break;
+                    default: // English
+                        systemInstruction = `You are Santa Claus. Greet ${formData.recipientName} briefly. Then say: "Remember this is just a trial call. We could talk more on the official North Pole line! Ho ho ho!" and say goodbye. Maximum 2-3 sentences total. Be cheerful but brief.`;
+                        break;
+                }
             } else {
                 // Regular full call instruction
                 systemInstruction = await generatePersonaInstruction(formData, langName);
