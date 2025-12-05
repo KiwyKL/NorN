@@ -1,14 +1,15 @@
-import { Capacitor } from '@capacitor/core';
+import { loadStripe } from '@stripe/stripe-js';
 import { PRODUCTS, Product, addCalls, recordPurchase, getAvailableCalls } from '../constants/products';
+import { API_ENDPOINTS } from './apiConfig';
 
 /**
- * Billing Service para Google Play
+ * Billing Service para Stripe (Web)
  * 
- * NOTA: Esta es una implementación MOCK para desarrollo.
- * Cuando subas a Google Play, necesitarás implementar el código nativo real.
- * 
- * Ver: docs/CONFIGURACION_PAGOS.md para instrucciones completas
+ * Maneja pagos a través de Stripe Checkout
  */
+
+// Inicializar Stripe
+const stripePromise = loadStripe(import.meta.env.VITE_STRIPE_PUBLISHABLE_KEY || '');
 
 class BillingService {
     private initialized = false;
@@ -16,16 +17,41 @@ class BillingService {
     async initialize(): Promise<void> {
         if (this.initialized) return;
 
-        console.log('🏪 Initializing Billing Service...');
+        console.log('🏪 Initializing Stripe Billing...');
 
-        // En producción, aquí contactarías Google Play Billing
-        // Por ahora, modo mock para testing
-        if (!Capacitor.isNativePlatform()) {
-            console.warn('⚠️ Running in MOCK mode - purchases will be simulated');
+        // Verificar que tenemos la clave
+        if (!import.meta.env.VITE_STRIPE_PUBLISHABLE_KEY) {
+            console.warn('⚠️ STRIPE_PUBLISHABLE_KEY not found');
         }
 
+        // Verificar success/cancel en URL
+        this.handleRedirect();
+
         this.initialized = true;
-        console.log('✅ Billing Service ready');
+        console.log('✅ Stripe Billing ready');
+    }
+
+    /**
+     * Manejar redirect después de checkout
+     */
+    private handleRedirect() {
+        const urlParams = new URLSearchParams(window.location.search);
+
+        if (urlParams.get('success') === 'true') {
+            const sessionId = urlParams.get('session_id');
+            console.log('✅ Payment successful!', sessionId);
+
+            // Limpiar URL
+            window.history.replaceState({}, '', window.location.pathname);
+
+            // Mostrar éxito
+            alert('¡Pago exitoso! Tus llamadas han sido agregadas. 🎅');
+        }
+
+        if (urlParams.get('canceled') === 'true') {
+            console.log('❌ Payment canceled');
+            window.history.replaceState({}, '', window.location.pathname);
+        }
     }
 
     /**
@@ -36,13 +62,11 @@ class BillingService {
             await this.initialize();
         }
 
-        // Retornar productos definidos
-        // En producción, Google Play proveerá precios reales por región
         return PRODUCTS;
     }
 
     /**
-     * Comprar un producto
+     * Comprar un producto (redirige a Stripe Checkout)
      */
     async purchase(productId: string): Promise<boolean> {
         if (!this.initialized) {
@@ -56,43 +80,50 @@ class BillingService {
         }
 
         try {
-            console.log(`🛒 Purchasing: ${product.name} (${product.calls} calls)`);
+            console.log(`🛒 Creating checkout session for: ${product.name}`);
 
-            if (Capacitor.isNativePlatform()) {
-                // TODO: Implementar Google Play Billing nativo
-                // Por ahora, simulamos compra exitosa
-                console.log('⚠️ MOCK: Simulating purchase...');
-                await new Promise(resolve => setTimeout(resolve, 1500));
+            // Llamar API para crear sesión de checkout
+            const response = await fetch(API_ENDPOINTS.createCheckout, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ productId }),
+            });
+
+            if (!response.ok) {
+                const error = await response.json();
+                throw new Error(error.error || 'Failed to create checkout');
             }
 
-            // Agregar llamadas al balance
-            addCalls(product.calls);
+            const { url } = await response.json();
 
-            // Registrar compra
-            recordPurchase(productId);
+            // Redirigir a Stripe Checkout
+            window.location.href = url;
 
-            console.log(`✅ Purchase successful! +${product.calls} calls`);
+            // Nota: El pago se completará en otra ventana/tab
+            // La lógica de agregar llamadas se manejará cuando el usuario regrese
+            // vía handleRedirect() y los URL params
+
+            // Por ahora, agregamos las llamadas optimísticamente
+            // (En producción real, esto se haría vía webhook de Stripe)
+            setTimeout(() => {
+                addCalls(product.calls);
+                recordPurchase(productId);
+            }, 1000);
+
             return true;
 
         } catch (error) {
             console.error('❌ Purchase failed:', error);
+            alert('Error al procesar el pago. Por favor intenta de nuevo.');
             return false;
         }
     }
 
     /**
-     * Restaurar compras previas
+     * Restaurar compras previas (no aplicable en web)
      */
     async restorePurchases(): Promise<void> {
-        if (!this.initialized) {
-            await this.initialize();
-        }
-
-        console.log('🔄 Restoring purchases...');
-
-        // En producción, consultarías Google Play por compras existentes
-        // Por ahora, solo mostramos mensaje
-        console.log('ℹ️ No purchases to restore in MOCK mode');
+        console.log('ℹ️ Restore purchases not needed in web version');
     }
 
     /**

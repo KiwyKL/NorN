@@ -13,10 +13,12 @@
     "@capacitor/cli": "^7.4.4",
     "@capacitor/core": "^7.4.4",
     "@google/genai": "^1.30.0",
+    "@stripe/stripe-js": "^8.5.3",
     "@vercel/node": "^3.0.21",
     "lucide-react": "^0.554.0",
     "react": "^19.2.0",
-    "react-dom": "^19.2.0"
+    "react-dom": "^19.2.0",
+    "stripe": "^20.0.0"
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4.1.17",
