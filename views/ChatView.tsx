@@ -92,14 +92,15 @@ const ChatView: React.FC<Props> = ({ setViewState, language }) => {
         setLoading(true);
 
         try {
-            const result = await chatSession.current.sendMessage({ role: 'user', parts: [{ text: userMsg.text }] });
+            // Send just the text string
+            const result = await chatSession.current.sendMessage(userMsg.text);
             const responseText = result.text || "Ho ho...";
 
             const modelMsg: ChatMessage = { id: (Date.now() + 1).toString(), role: 'model', text: responseText };
             setMessages(prev => [...prev, modelMsg]);
         } catch (error) {
             console.error("Chat Error", error);
-            setMessages(prev => [...prev, { id: Date.now().toString(), role: 'model', text: "..." }]);
+            setMessages(prev => [...prev, { id: Date.now().toString(), role: 'model', text: "Ho ho! I'm having trouble hearing you. Can you try again?" }]);
         } finally {
             setLoading(false);
         }
