@@ -50,6 +50,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
         console.log('Creating Stripe session for:', product);
 
+        // Get the actual origin from the request
+        const origin = req.headers.origin || req.headers.referer?.split('?')[0].replace(/\/$/, '') || process.env.APP_URL || 'https://nor-n.vercel.app';
+        console.log('Using origin for redirects:', origin);
+
         // Crear sesión de Stripe Checkout
         const session = await stripe.checkout.sessions.create({
             mode: 'payment',
@@ -60,8 +64,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                     quantity: 1,
                 },
             ],
-            success_url: `${process.env.APP_URL || 'http://localhost:5173'}?success=true&session_id={CHECKOUT_SESSION_ID}`,
-            cancel_url: `${process.env.APP_URL || 'http://localhost:5173'}?canceled=true`,
+            success_url: `${origin}?success=true&session_id={CHECKOUT_SESSION_ID}`,
+            cancel_url: `${origin}?canceled=true`,
             metadata: {
                 productId: product.id,
                 calls: product.calls.toString(),
