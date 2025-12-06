@@ -5,9 +5,17 @@
 const isCapacitor = !!(window as any).Capacitor;
 const isProduction = import.meta.env.PROD || isCapacitor;
 
-export const API_BASE_URL = isProduction
-    ? 'https://nor-n.vercel.app'
-    : 'http://localhost:5173'; // Vite default dev port
+// Get the actual deployment URL
+const getBaseUrl = () => {
+    if (typeof window !== 'undefined') {
+        // In browser, use current origin (works for preview deployments)
+        return window.location.origin;
+    }
+    // Fallback for SSR/build time
+    return isProduction ? 'https://nor-n.vercel.app' : 'http://localhost:5173';
+};
+
+export const API_BASE_URL = getBaseUrl();
 
 export const API_ENDPOINTS = {
     generateContent: `${API_BASE_URL}/api/generate-content`,
