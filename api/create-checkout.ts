@@ -2,7 +2,7 @@ import type { VercelRequest, VercelResponse } from '@vercel/node';
 import Stripe from 'stripe';
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY || '', {
-    apiVersion: '2024-11-20.acacia',
+    apiVersion: '2024-11-20.acacia' as any,
 });
 
 // Productos configurados
@@ -23,16 +23,32 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     }
 
     try {
+        console.log('🛒 Create checkout request received');
+        console.log('Environment check:', {
+            hasSecretKey: !!process.env.STRIPE_SECRET_KEY,
+            hasAppUrl: !!process.env.APP_URL,
+            priceIds: {
+                price1: process.env.STRIPE_PRICE_1_CALL,
+                price3: process.env.STRIPE_PRICE_3_CALLS,
+                price5: process.env.STRIPE_PRICE_5_CALLS,
+            }
+        });
+
         const { productId } = req.body;
 
         if (!productId) {
             return res.status(400).json({ error: 'Missing productId' });
         }
 
+        console.log('Product requested:', productId);
+
         const product = PRODUCTS.find(p => p.id === productId);
         if (!product || !product.priceId) {
+            console.error('Product not found or missing price ID:', { productId, product });
             return res.status(400).json({ error: 'Invalid product or price not configured' });
         }
+
+        console.log('Creating Stripe session for:', product);
 
         // Crear sesión de Stripe Checkout
         const session = await stripe.checkout.sessions.create({
@@ -52,16 +68,24 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             },
         });
 
+        console.log('✅ Session created:', session.id);
+
         return res.status(200).json({
             sessionId: session.id,
             url: session.url,
         });
 
     } catch (error: any) {
-        console.error('Stripe checkout error:', error);
+        console.error('❌ Stripe checkout error:', error);
+        console.error('Error details:', {
+            message: error.message,
+            type: error.type,
+            code: error.code,
+        });
         return res.status(500).json({
             error: 'Failed to create checkout session',
             message: error.message,
+            details: error.toString(),
         });
     }
 }
