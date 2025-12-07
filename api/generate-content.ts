@@ -19,8 +19,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         }
 
         const API_KEY = process.env.GEMINI_API_KEY;
-        // Use gemini-2.0-flash-exp which was working before, or allow override via env var
-        const MODEL = process.env.GEMINI_MODEL || 'gemini-2.0-flash-exp';
+        // Use gemini-2.5-flash-preview-image which has low usage and supports text
+        const MODEL = process.env.GEMINI_MODEL || 'gemini-2.5-flash-preview-image';
 
         if (!API_KEY) {
             console.error('❌ GEMINI_API_KEY not set on server');
