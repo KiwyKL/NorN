@@ -15,8 +15,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     }
 
     try {
-        console.log('📝 Generate content request');
-        console.log('Has API key:', !!process.env.GEMINI_API_KEY);
+        console.log('📝 Generate content request received');
 
         const { model, prompt, systemInstruction } = req.body;
 
@@ -25,12 +24,14 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         }
 
         if (!process.env.GEMINI_API_KEY) {
-            console.error('❌ GEMINI_API_KEY not configured');
-            return res.status(500).json({ error: 'API key not configured' });
+            console.error('❌ GEMINI_API_KEY is missing in environment variables');
+            return res.status(500).json({ error: 'Server configuration error: API key missing' });
         }
 
-        const modelToUse = model || 'gemini-2.0-flash-exp';
-        console.log('Using model:', modelToUse);
+        // Use a stable model for production web release
+        // gemini-1.5-flash is generally very fast and stable
+        const modelToUse = 'gemini-1.5-flash';
+        console.log(`Using model: ${modelToUse}`);
 
         const response = await ai.models.generateContent({
             model: modelToUse,
@@ -47,14 +48,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     } catch (error: any) {
         console.error('❌ Generate content error:', error);
-        console.error('Error details:', {
-            message: error.message,
-            type: error.type,
-            code: error.code,
-        });
+
+        // Return a fallback response instead of 500 if possible, or detailed error
         return res.status(500).json({
             error: 'Failed to generate content',
-            message: error.message,
+            message: error.message || 'Unknown error',
             details: error.toString()
         });
     }
