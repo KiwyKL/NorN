@@ -36,7 +36,9 @@ export const generateText = async (prompt: string, model?: string): Promise<stri
     });
 
     if (!response.ok) {
-      throw new Error('Failed to generate text');
+      const errorText = await response.text();
+      console.error('API Error Details:', errorText);
+      throw new Error(`Failed to generate text: ${response.status} ${response.statusText}`);
     }
 
     const data = await response.json();
@@ -148,12 +150,40 @@ export const analyzeLetterImage = async (base64Image: string) => {
 
 // --- 5. GENERAR IMAGEN ---
 export const generateChristmasImage = async (textOnLetter: string): Promise<string> => {
-  console.log('📸 Generating letter confirmation image (Canvas Fallback)');
+  console.log('📸 Generating letter image (Attempting API...)');
 
-  // Return a promise that resolves with the canvas image
-  return new Promise((resolve) => {
-    // Simulate processing time
-    setTimeout(() => {
+  // 1. Try API Generation first (for the "Wow" factor)
+  try {
+    const prompt = `Create a cinematic square photo of Santa Claus holding a letter. The letter contains the following text: "${textOnLetter}". Use warm Christmas lighting. Santa should look friendly and jolly. Professional photo quality. The image should fill the entire square frame.`;
+
+    // Timeout promise to prevent hanging
+    const timeoutPromise = new Promise((_, reject) =>
+      setTimeout(() => reject(new Error('Image generation timed out')), 8000)
+    );
+
+    const fetchPromise = fetch(API_ENDPOINTS.generateImage, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ prompt, aspectRatio: '1:1' })
+    });
+
+    const response = await Promise.race([fetchPromise, timeoutPromise]) as Response;
+
+    if (!response.ok) {
+      throw new Error(`API Error: ${response.status}`);
+    }
+
+    const data = await response.json();
+    if (!data.imageData) throw new Error('No image data returned');
+
+    console.log('✅ API Image generated successfully');
+    return data.imageData;
+
+  } catch (error) {
+    console.warn('⚠️ API Image generation failed, using canvas fallback:', error);
+
+    // 2. Fallback to Canvas (Robust & Reliable)
+    return new Promise((resolve) => {
       try {
         const canvas = document.createElement('canvas');
         canvas.width = 1024;
@@ -182,7 +212,6 @@ export const generateChristmasImage = async (textOnLetter: string): Promise<stri
           // Add letter preview
           ctx.font = '20px Arial';
           const lines = textOnLetter.split('\n');
-          // Draw first few lines of the letter
           lines.forEach((line, i) => {
             if (i < 5) ctx.fillText(line.substring(0, 50), 512, 640 + (i * 30));
           });
@@ -191,11 +220,11 @@ export const generateChristmasImage = async (textOnLetter: string): Promise<stri
         const base64 = canvas.toDataURL('image/png').split(',')[1];
         resolve(base64);
       } catch (e) {
-        console.error("Error creating canvas image", e);
+        console.error("Canvas fallback failed", e);
         resolve("");
       }
-    }, 1500);
-  });
+    });
+  }
 };
 
 // --- 6. INSTRUCCIONES DE PERSONA (SYNC VERSION) ---
