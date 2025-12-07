@@ -148,25 +148,54 @@ export const analyzeLetterImage = async (base64Image: string) => {
 
 // --- 5. GENERAR IMAGEN ---
 export const generateChristmasImage = async (textOnLetter: string): Promise<string> => {
-  const prompt = `Create a cinematic square photo of Santa Claus holding a letter. The letter contains the following text: "${textOnLetter}". Use warm Christmas lighting. Santa should look friendly and jolly. Professional photo quality. The image should fill the entire square frame.`;
+  console.log('📸 Generating letter confirmation image (Canvas Fallback)');
 
-  try {
-    const response = await fetch(API_ENDPOINTS.generateImage, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ prompt, aspectRatio: '1:1' })
-    });
+  // Return a promise that resolves with the canvas image
+  return new Promise((resolve) => {
+    // Simulate processing time
+    setTimeout(() => {
+      try {
+        const canvas = document.createElement('canvas');
+        canvas.width = 1024;
+        canvas.height = 1024;
+        const ctx = canvas.getContext('2d');
 
-    if (!response.ok) {
-      throw new Error('Failed to generate image');
-    }
+        if (ctx) {
+          // Christmas gradient background
+          const gradient = ctx.createLinearGradient(0, 0, 0, 1024);
+          gradient.addColorStop(0, '#c41e3a');
+          gradient.addColorStop(1, '#165b33');
+          ctx.fillStyle = gradient;
+          ctx.fillRect(0, 0, 1024, 1024);
 
-    const data = await response.json();
-    return data.imageData;
-  } catch (error) {
-    console.error('Error generating image:', error);
-    throw error;
-  }
+          // White text
+          ctx.fillStyle = 'white';
+          ctx.font = 'bold 56px Arial';
+          ctx.textAlign = 'center';
+          ctx.fillText('🎅', 512, 400);
+          ctx.font = 'bold 44px Arial';
+          ctx.fillText('Letter Received!', 512, 500);
+          ctx.font = '32px Arial';
+          ctx.fillStyle = '#ffe4e1';
+          ctx.fillText('Santa has your letter', 512, 570);
+
+          // Add letter preview
+          ctx.font = '20px Arial';
+          const lines = textOnLetter.split('\n');
+          // Draw first few lines of the letter
+          lines.forEach((line, i) => {
+            if (i < 5) ctx.fillText(line.substring(0, 50), 512, 640 + (i * 30));
+          });
+        }
+
+        const base64 = canvas.toDataURL('image/png').split(',')[1];
+        resolve(base64);
+      } catch (e) {
+        console.error("Error creating canvas image", e);
+        resolve("");
+      }
+    }, 1500);
+  });
 };
 
 // --- 6. INSTRUCCIONES DE PERSONA (SYNC VERSION) ---
@@ -234,7 +263,7 @@ function generatePersonaInstructionSync(context: CallContextData, language: stri
       details: 'Dettagli aggiuntivi',
       notSpecified: 'non specificato',
       santa: `Personalità: Babbo Natale classico. Caloroso, gentile, allegro. Ho ho ho! Menziona i dettagli personali del bambino nella conversazione.`,
-      grinch: `Personalità: Cinico, brontolone, lamentandoti del rumore / gioia. Sarcastico ma adorabile. Frasi brevi. Menziona i loro regali richiesti con sarcasmo.`,
+      grinch: `Personalità: Cinico, brontolone, lamentandoti del rumore / gioia. Sarcastico ma adorabile. Frases brevi. Menziona i loro regali richiesti con sarcasmo.`,
       spicy: `Personalità: Comico. Alta energia, ritmo veloce. Battute su elfi, renne. Carismatico, leggermente civettuolo. Usa frequentemente il nome del bambino.`
     },
     Portuguese: {
