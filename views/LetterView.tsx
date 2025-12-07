@@ -75,6 +75,7 @@ const LetterView: React.FC<Props> = ({ setViewState, language }) => {
             if (mountedRef.current) {
                 setImage(base64);
                 setIsSent(true);
+                console.log('✅ State updated: isSent=true, image length=', base64.length);
                 // Submit Lead
                 submitLead({
                     name,
@@ -111,6 +112,7 @@ const LetterView: React.FC<Props> = ({ setViewState, language }) => {
                 const base64 = canvas.toDataURL('image/png').split(',')[1];
                 setImage(base64);
                 setIsSent(true);
+                console.log('✅ Fallback state updated: isSent=true');
 
                 submitLead({
                     name,
@@ -122,7 +124,10 @@ const LetterView: React.FC<Props> = ({ setViewState, language }) => {
                 });
             }
         } finally {
-            if (mountedRef.current) setLoading(false);
+            if (mountedRef.current) {
+                setLoading(false);
+                console.log('✅ Loading set to false');
+            }
         }
     };
 
