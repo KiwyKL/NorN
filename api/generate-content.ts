@@ -1,7 +1,4 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
-import { GoogleGenAI } from '@google/genai';
-
-const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY || '' });
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
     // CORS preflight
@@ -15,41 +12,66 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     }
 
     try {
-        console.log('📝 Generate content request received');
-
         const { model, prompt, systemInstruction } = req.body;
 
         if (!prompt) {
             return res.status(400).json({ error: 'Missing prompt' });
         }
 
-        if (!process.env.GEMINI_API_KEY) {
-            console.error('❌ GEMINI_API_KEY is missing in environment variables');
-            return res.status(500).json({ error: 'Server configuration error: API key missing' });
+        const apiKey = process.env.GEMINI_API_KEY;
+        if (!apiKey) {
+            console.error('❌ GEMINI_API_KEY is missing');
+            return res.status(500).json({ error: 'Server configuration error' });
         }
 
-        // Use a stable model for production web release
-        // gemini-1.5-flash is generally very fast and stable
-        const modelToUse = 'gemini-1.5-flash';
-        console.log(`Using model: ${modelToUse}`);
+        // Use direct REST API to avoid SDK issues
+        // gemini-1.5-flash is stable and fast
+        const modelName = 'gemini-1.5-flash';
+        const url = `https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent?key=${apiKey}`;
 
-        const response = await ai.models.generateContent({
-            model: modelToUse,
-            contents: prompt,
-            config: systemInstruction ? { systemInstruction } : undefined
+        const contents = [];
+
+        // Add system instruction if present (as a system part or user part depending on API support, 
+        // but for simple chat, prepending to history or using system_instruction field is best)
+        // v1beta supports system_instruction
+        const body: any = {
+            contents: [{ role: 'user', parts: [{ text: prompt }] }]
+        };
+
+        if (systemInstruction) {
+            body.system_instruction = {
+                parts: [{ text: systemInstruction }]
+            };
+        }
+
+        console.log(`📝 Calling Gemini API (${modelName})...`);
+
+        const response = await fetch(url, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(body)
         });
+
+        if (!response.ok) {
+            const errorText = await response.text();
+            console.error('❌ Gemini API Error:', response.status, errorText);
+            throw new Error(`Gemini API Error: ${response.status} - ${errorText}`);
+        }
+
+        const data = await response.json();
+
+        // Extract text from response
+        const text = data.candidates?.[0]?.content?.parts?.[0]?.text || '';
 
         console.log('✅ Content generated successfully');
 
         return res.status(200).json({
-            text: response.text || '',
-            candidates: response.candidates
+            text: text,
+            candidates: data.candidates
         });
 
     } catch (error: any) {
         console.error('❌ Generate content error:', error);
-
-        // Return a fallback response instead of 500 if possible, or detailed error
         return res.status(500).json({
             error: 'Failed to generate content',
             message: error.message || 'Unknown error',
