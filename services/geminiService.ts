@@ -27,25 +27,59 @@ export const getLiveClient = async (): Promise<GoogleGenAI> => {
 };
 
 // --- 1. GENERAR TEXTO ---
-export const generateText = async (prompt: string, model?: string): Promise<string> => {
+/**
+ * CLIENT-SAFE: generateText (calls our backend which holds API key)
+ * The client sends only the prompt; backend controls model and key.
+ */
+export const generateText = async (prompt: string): Promise<string> => {
   try {
-    const response = await fetch(API_ENDPOINTS.generateContent, {
+    // Short-circuit for empty prompts
+    if (!prompt || prompt.trim() === '') return '';
+
+    // Request our serverless endpoint with timeout
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 20000); // 20s timeout
+
+    const resp = await fetch(API_ENDPOINTS.generateContent, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ prompt, model })
+      body: JSON.stringify({ prompt }),
+      signal: controller.signal
     });
 
-    if (!response.ok) {
-      const errorText = await response.text();
-      console.error('API Error Details:', errorText);
-      throw new Error(`Failed to generate text: ${response.status} ${response.statusText}`);
+    clearTimeout(timeout);
+
+    // Bubble up useful error info for debugging
+    if (!resp.ok) {
+      const text = await resp.text().catch(() => '');
+      console.error('API Error Details:', text);
+      throw new Error(`Failed to generate text: ${resp.status} ${resp.statusText}`);
     }
 
-    const data = await response.json();
-    return data.text;
-  } catch (error) {
-    console.error('Error generating text:', error);
-    throw error;
+    const data = await resp.json();
+
+    // Tolerant extraction: try multiple response structures
+    if (data && typeof data.text === 'string') return data.text;
+
+    // Fallback - try other structures
+    if (data?.candidates?.[0]?.content?.parts?.[0]?.text) {
+      return data.candidates[0].content.parts[0].text;
+    }
+    if (Array.isArray(data?.predictions) && data.predictions[0]) {
+      return JSON.stringify(data.predictions[0]);
+    }
+
+    // No text found
+    console.warn('generateText: no text field found in response', data);
+    return '';
+  } catch (err: any) {
+    // If aborted, provide better message
+    if (err?.name === 'AbortError') {
+      console.error('generateText aborted (timeout)', err);
+      throw new Error('Request timed out generating text');
+    }
+    console.error('Error generating text (client):', err);
+    throw err;
   }
 };
 

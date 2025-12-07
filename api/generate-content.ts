@@ -1,8 +1,4 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
-import { GoogleGenAI } from '@google/genai';
-
-// Initialize SDK with API key from environment
-const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY || '' });
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
     // CORS preflight
@@ -16,46 +12,93 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     }
 
     try {
-        const { model, prompt, systemInstruction } = req.body;
+        const { prompt } = req.body;
 
         if (!prompt) {
             return res.status(400).json({ error: 'Missing prompt' });
         }
 
-        if (!process.env.GEMINI_API_KEY) {
-            console.error('❌ GEMINI_API_KEY is missing');
-            return res.status(500).json({ error: 'Server configuration error: API key missing' });
+        const API_KEY = process.env.GEMINI_API_KEY;
+        // Use gemini-2.0-flash-exp which was working before, or allow override via env var
+        const MODEL = process.env.GEMINI_MODEL || 'gemini-2.0-flash-exp';
+
+        if (!API_KEY) {
+            console.error('❌ GEMINI_API_KEY not set on server');
+            return res.status(500).json({ error: 'Server misconfiguration: API key missing' });
         }
 
-        // Use stable model 'gemini-1.5-flash' to avoid 500 errors from experimental models
-        const modelToUse = 'gemini-1.5-flash';
-        console.log(`Using model: ${modelToUse}`);
+        console.log(`📝 Calling Gemini API with model: ${MODEL}`);
 
-        const response = await ai.models.generateContent({
-            model: modelToUse,
-            contents: prompt,
-            config: systemInstruction ? { systemInstruction } : undefined
+        // Use the correct REST API format
+        const url = `https://generativelanguage.googleapis.com/v1beta/models/${MODEL}:generateContent`;
+
+        // Build Google payload: contents -> parts -> text (correct format)
+        const body = {
+            contents: [
+                {
+                    parts: [{ text: String(prompt) }],
+                    role: 'user'
+                }
+            ],
+            generationConfig: {
+                temperature: 0.7,
+                maxOutputTokens: 800
+            }
+        };
+
+        const response = await fetch(url, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'x-goog-api-key': API_KEY  // Use header instead of query param
+            },
+            body: JSON.stringify(body)
         });
+
+        const data = await response.json().catch(() => null);
+
+        if (!response.ok) {
+            console.error('❌ Google Generative API error:', response.status, JSON.stringify(data));
+            // Return provider error to client for debugging (but avoid leaking API key)
+            return res.status(502).json({
+                error: 'Provider error',
+                providerStatus: response.status,
+                providerBody: data
+            });
+        }
+
+        // Extract text from response
+        let text = '';
+
+        if (data?.candidates?.[0]?.content?.parts?.[0]?.text) {
+            text = data.candidates[0].content.parts[0].text;
+        } else if (Array.isArray(data?.predictions) && data.predictions[0]) {
+            text = JSON.stringify(data.predictions[0]);
+        } else if (typeof data?.output === 'string') {
+            text = data.output;
+        } else {
+            // Fallback: try to find first "text" deeply
+            const findFirstText = (obj: any): string | null => {
+                if (!obj || typeof obj !== 'object') return null;
+                if (typeof obj.text === 'string') return obj.text;
+                for (const k of Object.keys(obj)) {
+                    const t = findFirstText(obj[k]);
+                    if (t) return t;
+                }
+                return null;
+            };
+            text = findFirstText(data) || '';
+        }
 
         console.log('✅ Content generated successfully');
 
-        return res.status(200).json({
-            text: response.text || '',
-            candidates: response.candidates
-        });
+        return res.status(200).json({ text, raw: text ? undefined : data });
 
     } catch (error: any) {
-        console.error('❌ Generate content error:', error);
-
-        // Log detailed error for debugging
-        if (error.response) {
-            console.error('API Response Error:', JSON.stringify(error.response, null, 2));
-        }
-
+        console.error('❌ Server generateContent error:', error);
         return res.status(500).json({
-            error: 'Failed to generate content',
-            message: error.message || 'Unknown error',
-            details: error.toString()
+            error: 'Internal server error',
+            message: error.message || 'Unknown error'
         });
     }
 }
