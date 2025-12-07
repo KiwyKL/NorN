@@ -3,13 +3,17 @@ import type { VercelRequest, VercelResponse } from '@vercel/node';
 /**
  * Ultra-robust image generation endpoint.
  * Deep searches for image data in any format the provider returns.
+ * Correct model names from ListModels output:
+ * - gemini-2.0-flash-exp-image-generation (primary)
+ * - imagen-4.0-generate-001, imagen-4.0-fast-generate-001 (fallbacks)
  */
 
 const API_KEY = process.env.GEMINI_API_KEY;
-const PRIMARY = process.env.IMAGE_MODEL_PRIMARY || "imagen-4.0-generate";
+// Correct model names from ListModels output
+const PRIMARY = process.env.IMAGE_MODEL_PRIMARY || "gemini-2.0-flash-exp-image-generation";
 const FALLBACKS = process.env.IMAGE_MODEL_FALLBACK
     ? process.env.IMAGE_MODEL_FALLBACK.split(",").map(s => s.trim())
-    : ["gemini-2.5-flash-preview-image"];
+    : ["imagen-4.0-generate-001", "imagen-4.0-fast-generate-001"];
 
 const delay = (ms: number) => new Promise(r => setTimeout(r, ms));
 
@@ -35,7 +39,6 @@ async function callModel(model: string, payload: any) {
 
 function isBase64(str: any): boolean {
     if (typeof str !== 'string') return false;
-    // Heuristic: long base64 strings (avoid false positives)
     return /^[A-Za-z0-9+/=\s]+$/.test(str) && str.length > 100;
 }
 
@@ -46,13 +49,11 @@ function isImageUrl(str: any): boolean {
         || str.includes('googleusercontent.com');
 }
 
-// Recursively scan object for base64 or image URLs
 function findImageData(obj: any, path: string[] = []): { type: 'base64' | 'url', value: string, path: string[] } | null {
     if (!obj || (typeof obj !== 'object' && typeof obj !== 'string')) return null;
 
     if (typeof obj === 'string') {
         const s = obj.trim();
-        // Data URL
         if (s.startsWith('data:image/')) {
             const b64 = s.split(',')[1];
             return { type: 'base64', value: b64, path };
@@ -74,7 +75,6 @@ function findImageData(obj: any, path: string[] = []): { type: 'base64' | 'url',
         return null;
     }
 
-    // Prioritize common image keys
     const priorityKeys = ['imageData', 'b64_json', 'base64', 'b64', 'bytesBase64Encoded', 'image', 'imageBytes', 'image_uri', 'imageUri', 'data'];
     for (const key of priorityKeys) {
         if (key in obj) {
@@ -83,9 +83,8 @@ function findImageData(obj: any, path: string[] = []): { type: 'base64' | 'url',
         }
     }
 
-    // Deep-scan all other keys
     for (const key of Object.keys(obj)) {
-        if (priorityKeys.includes(key)) continue; // Already checked
+        if (priorityKeys.includes(key)) continue;
         const found = findImageData(obj[key], path.concat(key));
         if (found) return found;
     }
@@ -113,7 +112,6 @@ async function tryModels(models: string[], payload: any): Promise<any> {
 
         if (out.ok) {
             console.log(`✅ ${m} returned 200, searching for image data...`);
-            // Try to find any image in the provider body
             const img = findImageData(out.body);
 
             if (img) {
@@ -130,7 +128,6 @@ async function tryModels(models: string[], payload: any): Promise<any> {
                 }
             }
 
-            // OK but no image found - log body keys for debugging
             console.warn(`⚠️ ${m} returned 200 but no image found. Body keys:`, Object.keys(out.body || {}));
             return { success: false, model: m, status: 200, providerBody: out.body, note: 'ok but no image found' };
         }
@@ -166,7 +163,6 @@ async function tryModels(models: string[], payload: any): Promise<any> {
 }
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
-    // CORS preflight
     if (req.method === 'OPTIONS') {
         return res.status(200).end();
     }
@@ -196,7 +192,6 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         payloads.push(basePayload);
     }
 
-    // Try payloads and models
     for (const p of payloads) {
         const out = await tryModels(models, p);
 
@@ -209,7 +204,6 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             });
         }
 
-        // If provider returned 429
         if (out.status === 429) {
             const retryMatch = JSON.stringify(out.providerBody || {}).match(/([0-9]+)s/);
             const retry = retryMatch ? parseInt(retryMatch[1], 10) : 60;
@@ -221,7 +215,6 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             });
         }
 
-        // If ok but no image -> return providerBody for debugging
         if (out.status === 200 && out.providerBody) {
             console.warn('Model returned 200 but no image found. providerBody keys:', Object.keys(out.providerBody));
             return res.status(200).json({
