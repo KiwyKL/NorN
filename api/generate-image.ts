@@ -2,20 +2,47 @@ import type { VercelRequest, VercelResponse } from '@vercel/node';
 
 /**
  * Robust image generation endpoint.
- * Tries multiple image generation models in order:
- * 1. imagen-4.0-generate (user has access per rate limits)
- * 2. gemini-2.0-flash-exp with image generation via generateContent
+ * Tries multiple image generation models with correct endpoint formats:
+ * - `:generateImage` for Imagen models
+ * - `:generateContent` for multimodal Gemini models
  * 
  * If all fail, returns useFallback: true so client uses canvas.
  */
 
+const PRIMARY_IMAGE_MODEL = process.env.IMAGE_MODEL_PRIMARY || "imagen-4.0-generate";
+const FALLBACK_IMAGE_MODELS = process.env.IMAGE_MODEL_FALLBACK
+    ? process.env.IMAGE_MODEL_FALLBACK.split(",").map(s => s.trim()).filter(Boolean)
+    : ["gemini-2.5-flash-preview-image"];
+
 const delay = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
-// Try Imagen API format
-async function tryImagenModel(apiKey: string, model: string, prompt: string, aspectRatio: string) {
-    const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:predict`;
+// Try :generateImage endpoint (for Imagen models)
+async function callGenerateImage(apiKey: string, model: string, payload: any) {
+    const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateImage`;
+    console.log(`🎨 Trying :generateImage on ${model}`);
 
-    const body = {
+    try {
+        const r = await fetch(url, {
+            method: "POST",
+            headers: {
+                "Content-Type": "application/json",
+                "x-goog-api-key": apiKey
+            },
+            body: JSON.stringify(payload),
+        });
+        const body = await r.json().catch(() => null);
+        return { ok: r.ok, status: r.status, body };
+    } catch (err) {
+        return { ok: false, status: 500, body: { error: String(err) } };
+    }
+}
+
+// Try :predict endpoint (alternative format for some models)
+async function callPredict(apiKey: string, model: string, prompt: string, aspectRatio: string) {
+    const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:predict`;
+    console.log(`🎨 Trying :predict on ${model}`);
+
+    const payload = {
         instances: [{ prompt }],
         parameters: {
             sampleCount: 1,
@@ -23,81 +50,107 @@ async function tryImagenModel(apiKey: string, model: string, prompt: string, asp
         }
     };
 
-    console.log(`🎨 Trying Imagen model: ${model}`);
-
-    const response = await fetch(url, {
-        method: 'POST',
-        headers: {
-            'Content-Type': 'application/json',
-            'x-goog-api-key': apiKey
-        },
-        body: JSON.stringify(body)
-    });
-
-    const data = await response.json().catch(() => null);
-
-    if (!response.ok) {
-        console.log(`❌ Imagen ${model} failed: ${response.status}`);
-        return { ok: false, status: response.status, data };
+    try {
+        const r = await fetch(url, {
+            method: "POST",
+            headers: {
+                "Content-Type": "application/json",
+                "x-goog-api-key": apiKey
+            },
+            body: JSON.stringify(payload),
+        });
+        const body = await r.json().catch(() => null);
+        return { ok: r.ok, status: r.status, body };
+    } catch (err) {
+        return { ok: false, status: 500, body: { error: String(err) } };
     }
-
-    // Extract image from Imagen response format
-    const base64Image = data?.predictions?.[0]?.bytesBase64Encoded
-        || data?.predictions?.[0]?.image?.bytesBase64Encoded;
-
-    if (base64Image) {
-        console.log(`✅ Imagen ${model} succeeded`);
-        return { ok: true, imageData: base64Image, model };
-    }
-
-    console.log(`❌ Imagen ${model}: no image data in response`);
-    return { ok: false, status: 200, data, noImage: true };
 }
 
-// Try Gemini multimodal model for image generation
-async function tryGeminiImageGeneration(apiKey: string, model: string, prompt: string) {
-    const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`;
+// Extract image data from various response formats
+function extractImageData(body: any): string | null {
+    if (!body) return null;
 
-    // For Gemini image generation, we use a specific prompt format
-    const body = {
-        contents: [{
-            parts: [{ text: `Generate an image: ${prompt}` }],
-            role: 'user'
-        }],
-        generationConfig: {
-            temperature: 0.9,
-            maxOutputTokens: 2048
-        }
+    // Format 1: Direct imageData
+    if (body.imageData) return body.imageData;
+
+    // Format 2: images[].b64_json
+    if (Array.isArray(body.images) && typeof body.images[0]?.b64_json === "string") {
+        return body.images[0].b64_json;
+    }
+
+    // Format 3: artifacts[].base64
+    if (Array.isArray(body.artifacts) && typeof body.artifacts[0]?.base64 === "string") {
+        return body.artifacts[0].base64;
+    }
+
+    // Format 4: predictions[].bytesBase64Encoded (Imagen format)
+    if (body.predictions?.[0]?.bytesBase64Encoded) {
+        return body.predictions[0].bytesBase64Encoded;
+    }
+    if (body.predictions?.[0]?.image?.bytesBase64Encoded) {
+        return body.predictions[0].image.bytesBase64Encoded;
+    }
+
+    // Format 5: generatedImages[].image.imageBytes
+    if (body.generatedImages?.[0]?.image?.imageBytes) {
+        return body.generatedImages[0].image.imageBytes;
+    }
+
+    return null;
+}
+
+async function attemptModel(apiKey: string, model: string, prompt: string, aspectRatio: string): Promise<{ success: boolean, imageData?: string, model?: string, status?: number, body?: any }> {
+    // Try :generateImage first
+    const payload1 = {
+        prompt: String(prompt),
+        imageConfig: { aspectRatio },
+        generationConfig: { maxOutputTokens: 1024, temperature: 0.7 }
     };
 
-    console.log(`🎨 Trying Gemini model for image: ${model}`);
+    let result = await callGenerateImage(apiKey, model, payload1);
 
-    const response = await fetch(url, {
-        method: 'POST',
-        headers: {
-            'Content-Type': 'application/json',
-            'x-goog-api-key': apiKey
-        },
-        body: JSON.stringify(body)
-    });
-
-    const data = await response.json().catch(() => null);
-
-    if (!response.ok) {
-        console.log(`❌ Gemini ${model} failed: ${response.status}`);
-        return { ok: false, status: response.status, data };
+    if (result.ok) {
+        const imageData = extractImageData(result.body);
+        if (imageData) {
+            console.log(`✅ Success with :generateImage on ${model}`);
+            return { success: true, imageData, model };
+        }
     }
 
-    // Check if response contains inline image data
-    const inlineData = data?.candidates?.[0]?.content?.parts?.find((p: any) => p.inlineData);
-    if (inlineData?.inlineData?.data) {
-        console.log(`✅ Gemini ${model} generated image`);
-        return { ok: true, imageData: inlineData.inlineData.data, model };
+    // If :generateImage returns 404, try :predict
+    if (result.status === 404) {
+        result = await callPredict(apiKey, model, prompt, aspectRatio);
+
+        if (result.ok) {
+            const imageData = extractImageData(result.body);
+            if (imageData) {
+                console.log(`✅ Success with :predict on ${model}`);
+                return { success: true, imageData, model };
+            }
+        }
     }
 
-    // No image data - Gemini might not support image generation with this model
-    console.log(`❌ Gemini ${model}: no image data in response`);
-    return { ok: false, status: 200, data, noImage: true };
+    // If rate limited
+    if (result.status === 429) {
+        console.log(`⚠️ ${model} rate limited`);
+        return { success: false, status: 429, body: result.body };
+    }
+
+    // 5xx error - retry once
+    if (result.status >= 500 && result.status < 600) {
+        console.log(`⚠️ ${model} returned ${result.status}, retrying...`);
+        await delay(500);
+        result = await callGenerateImage(apiKey, model, payload1);
+        if (result.ok) {
+            const imageData = extractImageData(result.body);
+            if (imageData) {
+                return { success: true, imageData, model };
+            }
+        }
+    }
+
+    console.log(`❌ ${model} failed: ${result.status}`);
+    return { success: false, status: result.status, body: result.body };
 }
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
@@ -111,7 +164,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     }
 
     try {
-        const { prompt, aspectRatio } = req.body;
+        const { prompt, aspectRatio = '1:1' } = req.body;
 
         if (!prompt) {
             return res.status(400).json({ error: 'Missing prompt' });
@@ -127,20 +180,15 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             });
         }
 
-        // Models to try in order (based on user's rate limits table)
-        const imagenModels = [
-            'imagen-4.0-generate',           // User has access (2/70 RPD)
-            'gemini-2.5-flash-preview-image' // Multimodal (8/2K RPD)
-        ];
-
+        // Models to try in order
+        const models = [PRIMARY_IMAGE_MODEL, ...FALLBACK_IMAGE_MODELS];
         const triedModels: string[] = [];
 
-        // Try Imagen models first
-        for (const model of imagenModels) {
+        for (const model of models) {
             triedModels.push(model);
-            const result = await tryImagenModel(apiKey, model, prompt, aspectRatio || '1:1');
+            const result = await attemptModel(apiKey, model, prompt, aspectRatio);
 
-            if (result.ok && result.imageData) {
+            if (result.success && result.imageData) {
                 return res.status(200).json({
                     imageData: result.imageData,
                     mimeType: 'image/png',
@@ -148,30 +196,23 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                 });
             }
 
-            // If rate limited, wait a bit and try next
+            // If rate limited and no more models, return error
             if (result.status === 429) {
-                console.log(`⚠️ ${model} rate limited, trying next...`);
+                const more = models.some(m => !triedModels.includes(m));
+                if (!more) {
+                    return res.status(200).json({
+                        imageData: null,
+                        useFallback: true,
+                        error: 'Provider quota exceeded',
+                        triedModels
+                    });
+                }
                 await delay(500);
                 continue;
             }
         }
 
-        // Try Gemini multimodal as fallback
-        const geminiModels = ['gemini-2.0-flash-exp'];
-        for (const model of geminiModels) {
-            triedModels.push(model);
-            const result = await tryGeminiImageGeneration(apiKey, model, prompt);
-
-            if (result.ok && result.imageData) {
-                return res.status(200).json({
-                    imageData: result.imageData,
-                    mimeType: 'image/png',
-                    providerModel: model
-                });
-            }
-        }
-
-        // All models failed - return fallback
+        // All models failed
         console.log(`❌ All image models failed. Tried: ${triedModels.join(', ')}`);
         return res.status(200).json({
             imageData: null,
