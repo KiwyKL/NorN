@@ -1,34 +1,30 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 
 /**
- * Robust image generation endpoint.
- * Tries multiple image generation models with correct endpoint formats:
- * - `:generateImage` for Imagen models
- * - `:generateContent` for multimodal Gemini models
- * 
- * If all fail, returns useFallback: true so client uses canvas.
+ * Ultra-robust image generation endpoint.
+ * Deep searches for image data in any format the provider returns.
  */
 
-const PRIMARY_IMAGE_MODEL = process.env.IMAGE_MODEL_PRIMARY || "imagen-4.0-generate";
-const FALLBACK_IMAGE_MODELS = process.env.IMAGE_MODEL_FALLBACK
-    ? process.env.IMAGE_MODEL_FALLBACK.split(",").map(s => s.trim()).filter(Boolean)
+const API_KEY = process.env.GEMINI_API_KEY;
+const PRIMARY = process.env.IMAGE_MODEL_PRIMARY || "imagen-4.0-generate";
+const FALLBACKS = process.env.IMAGE_MODEL_FALLBACK
+    ? process.env.IMAGE_MODEL_FALLBACK.split(",").map(s => s.trim())
     : ["gemini-2.5-flash-preview-image"];
 
-const delay = (ms: number) => new Promise((r) => setTimeout(r, ms));
+const delay = (ms: number) => new Promise(r => setTimeout(r, ms));
 
-// Try :generateImage endpoint (for Imagen models)
-async function callGenerateImage(apiKey: string, model: string, payload: any) {
+async function callModel(model: string, payload: any) {
     const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateImage`;
-    console.log(`🎨 Trying :generateImage on ${model}`);
+    console.log(`🎨 Calling ${model}:generateImage`);
 
     try {
         const r = await fetch(url, {
             method: "POST",
             headers: {
                 "Content-Type": "application/json",
-                "x-goog-api-key": apiKey
+                "x-goog-api-key": API_KEY!
             },
-            body: JSON.stringify(payload),
+            body: JSON.stringify(payload)
         });
         const body = await r.json().catch(() => null);
         return { ok: r.ok, status: r.status, body };
@@ -37,120 +33,136 @@ async function callGenerateImage(apiKey: string, model: string, payload: any) {
     }
 }
 
-// Try :predict endpoint (alternative format for some models)
-async function callPredict(apiKey: string, model: string, prompt: string, aspectRatio: string) {
-    const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:predict`;
-    console.log(`🎨 Trying :predict on ${model}`);
+function isBase64(str: any): boolean {
+    if (typeof str !== 'string') return false;
+    // Heuristic: long base64 strings (avoid false positives)
+    return /^[A-Za-z0-9+/=\s]+$/.test(str) && str.length > 100;
+}
 
-    const payload = {
-        instances: [{ prompt }],
-        parameters: {
-            sampleCount: 1,
-            aspectRatio: aspectRatio || '1:1'
+function isImageUrl(str: any): boolean {
+    if (typeof str !== 'string') return false;
+    return /^https?:\/\/.+\.(png|jpe?g|webp|gif)(\?.*)?$/i.test(str)
+        || /^https?:\/\/.+\/artifacts\/.+$/i.test(str)
+        || str.includes('googleusercontent.com');
+}
+
+// Recursively scan object for base64 or image URLs
+function findImageData(obj: any, path: string[] = []): { type: 'base64' | 'url', value: string, path: string[] } | null {
+    if (!obj || (typeof obj !== 'object' && typeof obj !== 'string')) return null;
+
+    if (typeof obj === 'string') {
+        const s = obj.trim();
+        // Data URL
+        if (s.startsWith('data:image/')) {
+            const b64 = s.split(',')[1];
+            return { type: 'base64', value: b64, path };
         }
-    };
-
-    try {
-        const r = await fetch(url, {
-            method: "POST",
-            headers: {
-                "Content-Type": "application/json",
-                "x-goog-api-key": apiKey
-            },
-            body: JSON.stringify(payload),
-        });
-        const body = await r.json().catch(() => null);
-        return { ok: r.ok, status: r.status, body };
-    } catch (err) {
-        return { ok: false, status: 500, body: { error: String(err) } };
-    }
-}
-
-// Extract image data from various response formats
-function extractImageData(body: any): string | null {
-    if (!body) return null;
-
-    // Format 1: Direct imageData
-    if (body.imageData) return body.imageData;
-
-    // Format 2: images[].b64_json
-    if (Array.isArray(body.images) && typeof body.images[0]?.b64_json === "string") {
-        return body.images[0].b64_json;
+        if (isBase64(s)) {
+            return { type: 'base64', value: s, path };
+        }
+        if (isImageUrl(s)) {
+            return { type: 'url', value: s, path };
+        }
+        return null;
     }
 
-    // Format 3: artifacts[].base64
-    if (Array.isArray(body.artifacts) && typeof body.artifacts[0]?.base64 === "string") {
-        return body.artifacts[0].base64;
+    if (Array.isArray(obj)) {
+        for (let i = 0; i < obj.length; i++) {
+            const found = findImageData(obj[i], path.concat(`[${i}]`));
+            if (found) return found;
+        }
+        return null;
     }
 
-    // Format 4: predictions[].bytesBase64Encoded (Imagen format)
-    if (body.predictions?.[0]?.bytesBase64Encoded) {
-        return body.predictions[0].bytesBase64Encoded;
-    }
-    if (body.predictions?.[0]?.image?.bytesBase64Encoded) {
-        return body.predictions[0].image.bytesBase64Encoded;
+    // Prioritize common image keys
+    const priorityKeys = ['imageData', 'b64_json', 'base64', 'b64', 'bytesBase64Encoded', 'image', 'imageBytes', 'image_uri', 'imageUri', 'data'];
+    for (const key of priorityKeys) {
+        if (key in obj) {
+            const found = findImageData(obj[key], path.concat(key));
+            if (found) return found;
+        }
     }
 
-    // Format 5: generatedImages[].image.imageBytes
-    if (body.generatedImages?.[0]?.image?.imageBytes) {
-        return body.generatedImages[0].image.imageBytes;
+    // Deep-scan all other keys
+    for (const key of Object.keys(obj)) {
+        if (priorityKeys.includes(key)) continue; // Already checked
+        const found = findImageData(obj[key], path.concat(key));
+        if (found) return found;
     }
 
     return null;
 }
 
-async function attemptModel(apiKey: string, model: string, prompt: string, aspectRatio: string): Promise<{ success: boolean, imageData?: string, model?: string, status?: number, body?: any }> {
-    // Try :generateImage first
-    const payload1 = {
-        prompt: String(prompt),
-        imageConfig: { aspectRatio },
-        generationConfig: { maxOutputTokens: 1024, temperature: 0.7 }
-    };
-
-    let result = await callGenerateImage(apiKey, model, payload1);
-
-    if (result.ok) {
-        const imageData = extractImageData(result.body);
-        if (imageData) {
-            console.log(`✅ Success with :generateImage on ${model}`);
-            return { success: true, imageData, model };
-        }
+async function fetchUrlToBase64(url: string): Promise<string | null> {
+    console.log(`📥 Fetching image URL: ${url.substring(0, 100)}...`);
+    try {
+        const r = await fetch(url);
+        if (!r.ok) throw new Error(`Fetch failed ${r.status}`);
+        const ab = await r.arrayBuffer();
+        return Buffer.from(ab).toString('base64');
+    } catch (e: any) {
+        console.warn('fetchUrlToBase64 failed:', e.message || e);
+        return null;
     }
+}
 
-    // If :generateImage returns 404, try :predict
-    if (result.status === 404) {
-        result = await callPredict(apiKey, model, prompt, aspectRatio);
+async function tryModels(models: string[], payload: any): Promise<any> {
+    for (const m of models) {
+        const out = await callModel(m, payload);
+        if (!out) continue;
 
-        if (result.ok) {
-            const imageData = extractImageData(result.body);
-            if (imageData) {
-                console.log(`✅ Success with :predict on ${model}`);
-                return { success: true, imageData, model };
+        if (out.ok) {
+            console.log(`✅ ${m} returned 200, searching for image data...`);
+            // Try to find any image in the provider body
+            const img = findImageData(out.body);
+
+            if (img) {
+                console.log(`🔍 Found image at path: ${img.path.join('.')}`);
+                if (img.type === 'base64') {
+                    return { success: true, model: m, imageData: img.value, providerBody: out.body, imagePath: img.path };
+                }
+                if (img.type === 'url') {
+                    const b64 = await fetchUrlToBase64(img.value);
+                    if (b64) {
+                        return { success: true, model: m, imageData: b64, providerBody: out.body, imagePath: img.path, imageUrl: img.value };
+                    }
+                    return { success: false, model: m, status: 200, providerBody: out.body, note: 'image URL returned but could not be fetched' };
+                }
             }
+
+            // OK but no image found - log body keys for debugging
+            console.warn(`⚠️ ${m} returned 200 but no image found. Body keys:`, Object.keys(out.body || {}));
+            return { success: false, model: m, status: 200, providerBody: out.body, note: 'ok but no image found' };
         }
-    }
 
-    // If rate limited
-    if (result.status === 429) {
-        console.log(`⚠️ ${model} rate limited`);
-        return { success: false, status: 429, body: result.body };
-    }
+        if (out.status === 404) {
+            console.warn(`❌ ${m} returned 404 (not found or not supported)`);
+            continue;
+        }
 
-    // 5xx error - retry once
-    if (result.status >= 500 && result.status < 600) {
-        console.log(`⚠️ ${model} returned ${result.status}, retrying...`);
-        await delay(500);
-        result = await callGenerateImage(apiKey, model, payload1);
-        if (result.ok) {
-            const imageData = extractImageData(result.body);
-            if (imageData) {
-                return { success: true, imageData, model };
+        if (out.status === 429) {
+            console.warn(`⚠️ ${m} returned 429 (quota exceeded)`);
+            return { success: false, model: m, status: 429, providerBody: out.body };
+        }
+
+        if (out.status >= 500) {
+            console.warn(`⚠️ ${m} returned ${out.status}, retrying once...`);
+            await delay(400);
+            const r2 = await callModel(m, payload);
+            if (r2.ok) {
+                const img = findImageData(r2.body);
+                if (img?.type === 'base64') {
+                    return { success: true, model: m, imageData: img.value, providerBody: r2.body };
+                }
+                if (img?.type === 'url') {
+                    const b64 = await fetchUrlToBase64(img.value);
+                    if (b64) return { success: true, model: m, imageData: b64, providerBody: r2.body, imageUrl: img.value };
+                }
             }
+            continue;
         }
     }
-
-    console.log(`❌ ${model} failed: ${result.status}`);
-    return { success: false, status: result.status, body: result.body };
+    return { success: false };
 }
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
@@ -163,70 +175,66 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         return res.status(405).json({ error: 'Method not allowed' });
     }
 
-    try {
-        const { prompt, aspectRatio = '1:1' } = req.body;
+    if (!API_KEY) {
+        return res.status(500).json({ error: 'Server misconfiguration: missing GEMINI_API_KEY' });
+    }
 
-        if (!prompt) {
-            return res.status(400).json({ error: 'Missing prompt' });
-        }
+    const { prompt, base64Image, aspectRatio = '1:1' } = req.body;
+    if (!prompt && !base64Image) {
+        return res.status(400).json({ error: 'Missing prompt or image' });
+    }
 
-        const apiKey = process.env.GEMINI_API_KEY;
-        if (!apiKey) {
-            console.error('❌ GEMINI_API_KEY is missing');
+    const models = [PRIMARY, ...FALLBACKS];
+    const payloads: any[] = [];
+    const basePayload = { prompt: String(prompt || ''), imageConfig: { aspectRatio } };
+
+    if (base64Image) {
+        payloads.push({ ...basePayload, image: base64Image });
+        payloads.push({ ...basePayload, imageData: base64Image });
+        payloads.push({ ...basePayload, contextImages: [{ image: base64Image }] });
+    } else {
+        payloads.push(basePayload);
+    }
+
+    // Try payloads and models
+    for (const p of payloads) {
+        const out = await tryModels(models, p);
+
+        if (out.success) {
             return res.status(200).json({
-                imageData: null,
-                useFallback: true,
-                error: 'API key missing'
+                imageData: out.imageData,
+                providerModel: out.model,
+                imagePath: out.imagePath,
+                imageUrl: out.imageUrl ?? null
             });
         }
 
-        // Models to try in order
-        const models = [PRIMARY_IMAGE_MODEL, ...FALLBACK_IMAGE_MODELS];
-        const triedModels: string[] = [];
-
-        for (const model of models) {
-            triedModels.push(model);
-            const result = await attemptModel(apiKey, model, prompt, aspectRatio);
-
-            if (result.success && result.imageData) {
-                return res.status(200).json({
-                    imageData: result.imageData,
-                    mimeType: 'image/png',
-                    providerModel: model
-                });
-            }
-
-            // If rate limited and no more models, return error
-            if (result.status === 429) {
-                const more = models.some(m => !triedModels.includes(m));
-                if (!more) {
-                    return res.status(200).json({
-                        imageData: null,
-                        useFallback: true,
-                        error: 'Provider quota exceeded',
-                        triedModels
-                    });
-                }
-                await delay(500);
-                continue;
-            }
+        // If provider returned 429
+        if (out.status === 429) {
+            const retryMatch = JSON.stringify(out.providerBody || {}).match(/([0-9]+)s/);
+            const retry = retryMatch ? parseInt(retryMatch[1], 10) : 60;
+            res.setHeader('Retry-After', String(retry));
+            return res.status(429).json({
+                error: 'Provider quota exceeded',
+                retryAfterSeconds: retry,
+                providerBody: out.providerBody
+            });
         }
 
-        // All models failed
-        console.log(`❌ All image models failed. Tried: ${triedModels.join(', ')}`);
-        return res.status(200).json({
-            imageData: null,
-            useFallback: true,
-            triedModels,
-            note: 'All image generation models failed, client should use canvas fallback'
-        });
-
-    } catch (error: any) {
-        console.error('❌ Generate image error:', error);
-        return res.status(200).json({
-            imageData: null,
-            useFallback: true,
-            error: error.message
-        });
+        // If ok but no image -> return providerBody for debugging
+        if (out.status === 200 && out.providerBody) {
+            console.warn('Model returned 200 but no image found. providerBody keys:', Object.keys(out.providerBody));
+            return res.status(200).json({
+                imageData: null,
+                providerModel: out.model,
+                providerBody: out.providerBody,
+                note: out.note
+            });
+        }
     }
+
+    return res.status(502).json({
+        error: 'Image generation failed for all models/payloads',
+        triedModels: models
+    });
 }
