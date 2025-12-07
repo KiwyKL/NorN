@@ -190,28 +190,46 @@ export const generateChristmasImage = async (textOnLetter: string): Promise<stri
   try {
     const prompt = `Create a cinematic square photo of Santa Claus holding a letter. The letter contains the following text: "${textOnLetter}". Use warm Christmas lighting. Santa should look friendly and jolly. Professional photo quality. The image should fill the entire square frame.`;
 
-    // Timeout promise to prevent hanging
+    // Timeout promise to prevent hanging (increased to 15s for image gen)
     const timeoutPromise = new Promise((_, reject) =>
-      setTimeout(() => reject(new Error('Image generation timed out')), 8000)
+      setTimeout(() => reject(new Error('Image generation timed out')), 15000)
     );
 
     const fetchPromise = fetch(API_ENDPOINTS.generateImage, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ prompt, aspectRatio: '1:1' })
+      body: JSON.stringify({ prompt, aspectRatio: '1:1', mode: 'generate' })
     });
 
     const response = await Promise.race([fetchPromise, timeoutPromise]) as Response;
+    const data = await response.json().catch(() => null);
+
+    console.log('generateImage response:', response.status, data);
+
+    // Handle rate limiting
+    if (response.status === 429) {
+      const retry = data?.retryAfterSeconds ?? 60;
+      console.warn(`⚠️ Image API rate limited. Retry after ${retry}s`);
+      throw new Error(`Quota exceeded. Retry after ${retry}s`);
+    }
 
     if (!response.ok) {
       throw new Error(`API Error: ${response.status}`);
     }
 
-    const data = await response.json();
-    if (!data.imageData) throw new Error('No image data returned');
+    if (data?.imageData) {
+      console.log('✅ API Image generated successfully');
+      return data.imageData;
+    }
 
-    console.log('✅ API Image generated successfully');
-    return data.imageData;
+    // Provider returned OK but no imageData - log for debugging
+    if (data?.providerBody) {
+      console.warn('⚠️ No imageData from provider; providerBody:', data.providerBody);
+    } else if (data?.triedModels) {
+      console.warn('⚠️ No imageData; tried models:', data.triedModels);
+    }
+
+    throw new Error('No image data returned');
 
   } catch (error) {
     console.warn('⚠️ API Image generation failed, using canvas fallback:', error);
