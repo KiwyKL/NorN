@@ -306,8 +306,12 @@ const LetterView: React.FC<Props> = ({ setViewState, language }) => {
         }
     };
 
+    // Debug: Log render state
+    console.log('🔄 LetterView render - loading:', loading, 'isSent:', isSent, 'hasImage:', !!image, 'imageLength:', image?.length);
+
     // LOADING OVERLAY (SENDING...)
     if (loading) {
+        console.log('📤 Showing LOADING view');
         return (
             <div className="relative h-full w-full flex flex-col">
                 <div className="absolute inset-0 z-0 bg-cover bg-center bg-no-repeat" style={{ backgroundImage: 'url("/images/dashboard-bg.jpg")' }} />
@@ -327,6 +331,7 @@ const LetterView: React.FC<Props> = ({ setViewState, language }) => {
 
     // SUCCESS VIEW (SANTA HOLDING LETTER)
     if (isSent && image) {
+        console.log('✅ Showing SUCCESS view');
         return (
             <div className="relative h-full w-full flex flex-col">
                 <div className="absolute inset-0 z-0 bg-cover bg-center bg-no-repeat" style={{ backgroundImage: 'url("/images/dashboard-bg.jpg")' }} />
