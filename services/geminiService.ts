@@ -182,59 +182,39 @@ export const analyzeLetterImage = async (base64Image: string) => {
   }
 };
 
-// --- 5. GENERAR IMAGEN ---
+// --- 5. GENERAR IMAGEN (Gemini 2.5 Flash Image - CLIENT-SIDE) ---
 export const generateChristmasImage = async (textOnLetter: string): Promise<string> => {
-  console.log('📸 Generating letter image (Attempting API...)');
+  console.log('📸 Generating letter image with gemini-2.5-flash-image...');
 
-  // 1. Try API Generation first (for the "Wow" factor)
+  const prompt = `Create a cinematic square photo of Santa Claus holding a letter. The letter contains the following text: "${textOnLetter}". Use warm Christmas lighting. Santa should look friendly and jolly. Professional photo quality. The image should fill the entire square frame.`;
+
   try {
-    const prompt = `Create a cinematic square photo of Santa Claus holding a letter. The letter contains the following text: "${textOnLetter}". Use warm Christmas lighting. Santa should look friendly and jolly. Professional photo quality. The image should fill the entire square frame.`;
+    const ai = new GoogleGenAI({ apiKey: import.meta.env.VITE_GEMINI_API_KEY || '' });
 
-    // Timeout promise to prevent hanging (increased to 15s for image gen)
-    const timeoutPromise = new Promise((_, reject) =>
-      setTimeout(() => reject(new Error('Image generation timed out')), 15000)
-    );
-
-    const fetchPromise = fetch(API_ENDPOINTS.generateImage, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ prompt, aspectRatio: '1:1', mode: 'generate' })
+    const response = await ai.models.generateContent({
+      model: 'gemini-2.5-flash-image',
+      contents: prompt,
+      config: {
+        imageConfig: {
+          aspectRatio: '1:1'
+        }
+      }
     });
 
-    const response = await Promise.race([fetchPromise, timeoutPromise]) as Response;
-    const data = await response.json().catch(() => null);
-
-    console.log('generateImage response:', response.status, data);
-
-    // Handle rate limiting
-    if (response.status === 429) {
-      const retry = data?.retryAfterSeconds ?? 60;
-      console.warn(`⚠️ Image API rate limited. Retry after ${retry}s`);
-      throw new Error(`Quota exceeded. Retry after ${retry}s`);
+    // Extract image from response
+    for (const part of response.candidates[0].content.parts) {
+      if (part.inlineData) {
+        console.log('✅ Image generated successfully');
+        return part.inlineData.data;
+      }
     }
 
-    if (!response.ok) {
-      throw new Error(`API Error: ${response.status}`);
-    }
-
-    if (data?.imageData) {
-      console.log('✅ API Image generated successfully');
-      return data.imageData;
-    }
-
-    // Provider returned OK but no imageData - log for debugging
-    if (data?.providerBody) {
-      console.warn('⚠️ No imageData from provider; providerBody:', data.providerBody);
-    } else if (data?.triedModels) {
-      console.warn('⚠️ No imageData; tried models:', data.triedModels);
-    }
-
-    throw new Error('No image data returned');
+    throw new Error("No image generated in response");
 
   } catch (error) {
-    console.warn('⚠️ API Image generation failed, using canvas fallback:', error);
+    console.error('❌ Image generation error:', error);
 
-    // 2. Fallback to Canvas (Robust & Reliable)
+    // Fallback to Canvas
     return new Promise((resolve) => {
       try {
         const canvas = document.createElement('canvas');
@@ -243,14 +223,12 @@ export const generateChristmasImage = async (textOnLetter: string): Promise<stri
         const ctx = canvas.getContext('2d');
 
         if (ctx) {
-          // Christmas gradient background
           const gradient = ctx.createLinearGradient(0, 0, 0, 1024);
           gradient.addColorStop(0, '#c41e3a');
           gradient.addColorStop(1, '#165b33');
           ctx.fillStyle = gradient;
           ctx.fillRect(0, 0, 1024, 1024);
 
-          // White text
           ctx.fillStyle = 'white';
           ctx.font = 'bold 56px Arial';
           ctx.textAlign = 'center';
@@ -261,7 +239,6 @@ export const generateChristmasImage = async (textOnLetter: string): Promise<stri
           ctx.fillStyle = '#ffe4e1';
           ctx.fillText('Santa has your letter', 512, 570);
 
-          // Add letter preview
           ctx.font = '20px Arial';
           const lines = textOnLetter.split('\n');
           lines.forEach((line, i) => {
@@ -270,6 +247,7 @@ export const generateChristmasImage = async (textOnLetter: string): Promise<stri
         }
 
         const base64 = canvas.toDataURL('image/png').split(',')[1];
+        console.log('✅ Canvas fallback generated');
         resolve(base64);
       } catch (e) {
         console.error("Canvas fallback failed", e);
