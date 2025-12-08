@@ -73,9 +73,15 @@ const LetterView: React.FC<Props> = ({ setViewState, language }) => {
             console.log('✅ Image generated successfully');
 
             if (mountedRef.current) {
+                // Set loading false FIRST to prevent loading screen
+                setLoading(false);
+                console.log('✅ Loading set to false');
+
+                // Then set success state
                 setImage(base64);
                 setIsSent(true);
                 console.log('✅ State updated: isSent=true, image length=', base64.length);
+
                 // Submit Lead
                 submitLead({
                     name,
@@ -110,6 +116,11 @@ const LetterView: React.FC<Props> = ({ setViewState, language }) => {
                 ctx.fillText('Santa has your letter', 512, 560);
 
                 const base64 = canvas.toDataURL('image/png').split(',')[1];
+
+                // Set loading false FIRST
+                setLoading(false);
+                console.log('✅ Fallback: Loading set to false');
+
                 setImage(base64);
                 setIsSent(true);
                 console.log('✅ Fallback state updated: isSent=true');
@@ -122,11 +133,6 @@ const LetterView: React.FC<Props> = ({ setViewState, language }) => {
                     timestamp: new Date().toISOString(),
                     metadata: { age, message }
                 });
-            }
-        } finally {
-            if (mountedRef.current) {
-                setLoading(false);
-                console.log('✅ Loading set to false');
             }
         }
     };
